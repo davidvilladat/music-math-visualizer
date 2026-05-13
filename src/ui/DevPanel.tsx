@@ -1,5 +1,5 @@
 import { useControls, folder } from 'leva'
-import { useStore, type VisualMode } from '../state/store'
+import { useStore, type ReactivityMode, type VisualMode } from '../state/store'
 import { useEffect } from 'react'
 
 export function DevPanel() {
@@ -74,7 +74,7 @@ export function DevPanel() {
     }, { collapsed: true }),
     Particles: folder({
       visualMode:          { value: 'formula', options: ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'], label: 'Visual mode (V)' },
-      reactivity:          { value: 'balanced', options: ['subtle', 'balanced', 'intense', 'frenetic'], label: 'Reactivity' },
+      reactivity:          { value: 'balanced', options: ['steady', 'subtle', 'balanced', 'intense', 'frenetic'], label: 'Reactivity (S)' },
       magneticBlend:       { value: 0.6,   min: 0.0,   max: 1.0,   step: 0.05,  label: 'Mag blend (0=vel,1=B)' },
       particleSpeed:       { value: 8.0,   min: 1.0,   max: 30.0,  step: 0.5,   label: 'Particle speed' },
       particleRespawnRate: { value: 0.002, min: 0.0,   max: 0.02,  step: 0.001, label: 'Respawn rate' },
@@ -88,7 +88,7 @@ export function DevPanel() {
     setDevParams({
       ...values,
       visualMode: values.visualMode as VisualMode,
-      reactivity: values.reactivity as 'subtle' | 'balanced' | 'intense' | 'frenetic',
+      reactivity: values.reactivity as ReactivityMode,
     })
   }, [values, setDevParams])
 

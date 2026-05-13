@@ -52,11 +52,12 @@ const FORMULA_VARIANTS: Partial<Record<DevParams['visualMode'], number>> = {
   prism: 24,
 }
 
-const REACTIVITY_VALUES: Record<DevParams['reactivity'], number> = {
-  subtle: 0.45,
-  balanced: 1.0,
-  intense: 1.55,
-  frenetic: 2.25,
+const REACTIVITY_PRESETS: Record<DevParams['reactivity'], { visual: number; tempo: number }> = {
+  steady: { visual: 0.28, tempo: 0.0 },
+  subtle: { visual: 0.45, tempo: 0.45 },
+  balanced: { visual: 1.0, tempo: 1.0 },
+  intense: { visual: 1.55, tempo: 1.55 },
+  frenetic: { visual: 2.25, tempo: 2.25 },
 }
 
 export class Renderer {
@@ -235,6 +236,7 @@ export class Renderer {
         }
 
     const mode = devParams.visualMode
+    const reactivity = REACTIVITY_PRESETS[devParams.reactivity]
 
     if (mode === 'electric') {
       // ── Electric: plasma + waveform + lightning ────────────────────────
@@ -263,10 +265,11 @@ export class Renderer {
         waveAmp:    devParams.formulaWaveAmp,
         brightness: devParams.formulaBrightness,
         tempoInfluence: devParams.formulaTempoInfluence,
+        tempoReactivity: reactivity.tempo,
         energyInfluence: devParams.formulaEnergyInfluence,
         beatKick: devParams.formulaBeatKick,
         bandWarp: devParams.formulaBandWarp,
-        reactivity: REACTIVITY_VALUES[devParams.reactivity],
+        reactivity: reactivity.visual,
       })
       this.formula.render(this.post.sourceRT)
     } else {
@@ -354,11 +357,21 @@ export class Renderer {
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    const target = e.target as HTMLElement | null
+    if (target?.tagName === 'INPUT' || target?.tagName === 'SELECT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
+      return
+    }
+
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
       const modes = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'] as const
       const next = modes[(modes.indexOf(devParams.visualMode as typeof modes[number]) + 1) % modes.length]
       setDevParams({ visualMode: next })
+    } else if (e.key === 's' || e.key === 'S') {
+      const { devParams, setDevParams } = useStore.getState()
+      const modes = ['steady', 'subtle', 'balanced', 'intense', 'frenetic'] as const
+      const next = modes[(modes.indexOf(devParams.reactivity as typeof modes[number]) + 1) % modes.length]
+      setDevParams({ reactivity: next })
     }
   }
 

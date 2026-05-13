@@ -1,57 +1,33 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useStore } from '../state/store'
 
-const LABEL: Record<string, string> = {
-  fluid: 'FLUID',
-  streamlines: 'STREAMLINES',
-  hybrid: 'HYBRID',
-  electric: 'ELECTRIC',
-  neon: 'NEON',
-  nova: 'NOVA',
-  formula: 'FORMULA',
-  feather: 'FEATHER',
-  pulse: 'PULSE',
-  grid: 'GRID',
-  orbit: 'ORBIT',
-  wing: 'WING',
-  bloom: 'BLOOM',
-  ribbon: 'RIBBON',
-  helix: 'HELIX',
-  field: 'FIELD',
-  echo: 'ECHO',
-  flare: 'FLARE',
-  surge: 'SURGE',
-  lyra: 'LYRA',
-  veil: 'VEIL',
-  ember: 'EMBER',
-  glint: 'GLINT',
-  wave: 'WAVE',
-  cyclone: 'CYCLONE',
-  lattice: 'LATTICE',
-  petal: 'PETAL',
-  comet: 'COMET',
-  chroma: 'CHROMA',
-  attractor: 'ATTRACTOR',
-  prism: 'PRISM',
+const REACTIVITY_LABEL: Record<string, string> = {
+  steady: 'STEADY',
+  subtle: 'SUBTLE',
+  balanced: 'BALANCED',
+  intense: 'INTENSE',
+  frenetic: 'FRENETIC',
 }
 
 export function ModeHUD() {
-  const mode = useStore((s) => s.devParams.visualMode)
-  const prevMode = useRef(mode)
+  const reactivity = useStore((s) => s.devParams.reactivity)
+  const prevReactivity = useRef(reactivity)
   const [key, setKey] = useState(0)
+  const [label, setLabel] = useState(REACTIVITY_LABEL[reactivity] ?? reactivity.toUpperCase())
 
   useEffect(() => {
-    if (mode !== prevMode.current) {
-      prevMode.current = mode
+    if (reactivity !== prevReactivity.current) {
+      prevReactivity.current = reactivity
+      setLabel(REACTIVITY_LABEL[reactivity] ?? reactivity.toUpperCase())
       setKey((k) => k + 1)
     }
-  }, [mode])
+  }, [reactivity])
 
   if (key === 0) return null
 
   return (
     <div key={key} style={toast}>
-      {LABEL[mode] ?? mode.toUpperCase()}
+      {label}
     </div>
   )
 }

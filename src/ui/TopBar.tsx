@@ -36,6 +36,7 @@ const MODES: { key: VisualMode; label: string; accent: string }[] = [
 ]
 
 const REACTIVITY: { key: Reactivity; label: string }[] = [
+  { key: 'steady', label: 'Steady' },
   { key: 'subtle', label: 'Subtle' },
   { key: 'balanced', label: 'Balanced' },
   { key: 'intense', label: 'Intense' },

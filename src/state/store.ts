@@ -41,6 +41,8 @@ export type VisualMode =
   | 'attractor'
   | 'prism'
 
+export type ReactivityMode = 'steady' | 'subtle' | 'balanced' | 'intense' | 'frenetic'
+
 export interface DevParams {
   tauSubBass: number
   tauBass: number
@@ -74,7 +76,7 @@ export interface DevParams {
   psiDissipation: number
   // particles
   visualMode: VisualMode
-  reactivity: 'subtle' | 'balanced' | 'intense' | 'frenetic'
+  reactivity: ReactivityMode
   particleSpeed: number
   particleRespawnRate: number
   particleTrailDecay: number

@@ -11,6 +11,7 @@ export interface FormulaDevParams {
   waveAmp:    number
   brightness: number
   tempoInfluence: number
+  tempoReactivity: number
   energyInfluence: number
   beatKick: number
   bandWarp: number
@@ -89,7 +90,7 @@ export class FormulaScene {
     const bpmRate = features.bpm && features.bpmConfidence > 0.25
       ? Math.max(0.5, Math.min(1.85, features.bpm / 120))
       : 1
-    const tempo = 1 + (bpmRate - 1) * cfg.tempoInfluence * profile.tempo * cfg.reactivity * Math.max(0.25, features.bpmConfidence)
+    const tempo = 1 + (bpmRate - 1) * cfg.tempoInfluence * profile.tempo * cfg.tempoReactivity * Math.max(0.25, features.bpmConfidence)
     const energy = 1 + features.rms * cfg.energyInfluence * profile.energy * cfg.reactivity
     const beat = 1 + features.beatPulse * cfg.beatKick * profile.beat * cfg.reactivity
     const targetRate = Math.max(0.2, Math.min(3.0, tempo * energy * beat))
