@@ -10,6 +10,7 @@ const LABEL: Record<string, string> = {
   nova: 'NOVA',
   formula: 'FORMULA',
   feather: 'FEATHER',
+  pulse: 'PULSE',
 }
 
 export function ModeHUD() {

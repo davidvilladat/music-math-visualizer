@@ -40,7 +40,7 @@ export interface DevParams {
   dipoleRadius: number
   psiDissipation: number
   // particles
-  visualMode: 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather'
+  visualMode: 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse'
   particleSpeed: number
   particleRespawnRate: number
   particleTrailDecay: number

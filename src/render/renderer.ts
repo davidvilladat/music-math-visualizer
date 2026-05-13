@@ -219,10 +219,10 @@ export class Renderer {
       // ── Nova: supernova explosion ──────────────────────────────────────
       this.nova.update(dt, this.features)
       this.nova.render(this.post.sourceRT)
-    } else if (mode === 'formula' || mode === 'feather') {
+    } else if (mode === 'formula' || mode === 'feather' || mode === 'pulse') {
       // ── Formula: parametric spiral point cloud ─────────────────────────
       this.formula.update(dt, this.features, {
-        variant:    mode === 'feather' ? 1 : 0,
+        variant:    mode === 'pulse' ? 2 : mode === 'feather' ? 1 : 0,
         speed:      devParams.formulaSpeed,
         zoom:       devParams.formulaZoom,
         waveAmp:    devParams.formulaWaveAmp,
@@ -316,7 +316,7 @@ export class Renderer {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
-      const modes = ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather'] as const
+      const modes = ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse'] as const
       const next = modes[(modes.indexOf(devParams.visualMode as typeof modes[number]) + 1) % modes.length]
       setDevParams({ visualMode: next })
     }

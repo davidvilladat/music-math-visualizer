@@ -6,15 +6,16 @@ import type { DevParams } from '../state/store'
 
 type VisualMode = DevParams['visualMode']
 
-const MODES: { key: VisualMode; label: string }[] = [
-  { key: 'hybrid', label: 'Hybrid' },
-  { key: 'fluid', label: 'Fluid' },
-  { key: 'streamlines', label: 'Lines' },
-  { key: 'electric', label: 'Electric' },
-  { key: 'neon', label: 'Neon' },
-  { key: 'nova', label: 'Nova' },
-  { key: 'formula', label: 'Formula' },
-  { key: 'feather', label: 'Feather' },
+const MODES: { key: VisualMode; label: string; accent: string }[] = [
+  { key: 'hybrid', label: 'Hybrid', accent: '#ec4899' },
+  { key: 'fluid', label: 'Fluid', accent: '#00d4ff' },
+  { key: 'streamlines', label: 'Lines', accent: '#8b5cf6' },
+  { key: 'electric', label: 'Electric', accent: '#facc15' },
+  { key: 'neon', label: 'Neon', accent: '#ff00dc' },
+  { key: 'nova', label: 'Nova', accent: '#ff7814' },
+  { key: 'formula', label: 'Formula', accent: '#ff1f1f' },
+  { key: 'feather', label: 'Feather', accent: '#f8fafc' },
+  { key: 'pulse', label: 'Pulse', accent: '#38bdf8' },
 ]
 
 interface Props {
@@ -51,6 +52,7 @@ export function TopBar({ onChangeSource }: Props) {
   const spotifyPlayer = getPlayer()
   const hasTransport = Boolean(scPlayer || spotifyPlayer)
   const art = track?.artworkUrl
+  const activeMode = MODES.find((mode) => mode.key === visualMode) ?? MODES[0]
 
   const prevTrack = () => {
     if (spotifyPlayer) void spotifyPlayer.previousTrack()
@@ -95,10 +97,17 @@ export function TopBar({ onChangeSource }: Props) {
           aria-label="Visual mode"
           value={visualMode}
           onChange={(e) => setDevParams({ visualMode: e.target.value as VisualMode })}
-          style={modeSelect}
+          style={{
+            ...modeSelect,
+            borderColor: activeMode.accent,
+            color: activeMode.accent,
+            background: `color-mix(in srgb, ${activeMode.accent} 16%, rgba(0,0,0,0.76))`,
+          }}
         >
           {MODES.map((mode) => (
-            <option key={mode.key} value={mode.key}>{mode.label}</option>
+            <option key={mode.key} value={mode.key} style={{ background: '#070707', color: mode.accent }}>
+              {mode.label}
+            </option>
           ))}
         </select>
 

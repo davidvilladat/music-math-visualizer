@@ -93,6 +93,44 @@ vec2 featherFormula(float i, float layer, out float tip, out float core) {
   return p;
 }
 
+vec2 pulseFormula(float i, float layer, out float tip, out float core) {
+  // Based on the provided p5 one-liner:
+  // k=(4+sin(y*2-t)*3)*cos(x/29); e=y/8-13;
+  // q=3*sin(k*2)+.3/k+sin(y/25)*k*(9+4*sin(e*9-d*3+t*2));
+  // x=q+30*cos(d-t)+200; y=q*sin(c)+d*39-220.
+  float x = i + layer * 0.37;
+  float y = i / 235.0 + layer * 0.09;
+
+  float k = (4.0 + sin(y * 2.0 - uTime) * 3.0) * cos(x / 29.0);
+  float e = y / 8.0 - 13.0;
+  float d = length(vec2(k, e));
+  float safeInvK = sign(k) / max(abs(k), 0.1);
+
+  float q = 3.0 * sin(k * 2.0)
+          + 0.3 * safeInvK
+          + sin(y / 25.0) * k * (
+              9.0 + 4.0 * uWaveAmp * sin(e * 9.0 - d * 3.0 + uTime * 2.0)
+            );
+  q *= 1.0 + uMid * 0.14;
+
+  float c = d - uTime;
+  float px = q + 30.0 * cos(c) + 200.0;
+  float py = q * sin(c) + d * 39.0 - 220.0;
+
+  vec2 p = vec2(px - 200.0, -(py - 210.0));
+  p = rotate2(p, 0.18);
+  p.x *= 1.08;
+  p.y *= 0.98;
+
+  float kNorm = clamp(abs(k) / 7.0, 0.0, 1.0);
+  float outer = smoothstep(0.62, 0.95, kNorm);
+  float crest = smoothstep(0.62, 0.98, sin(d * 1.2 + y * 0.05 + layer) * 0.5 + 0.5);
+  tip = clamp(outer * crest, 0.0, 1.0);
+  core = smoothstep(2.0, 8.5, d) * (1.0 - smoothstep(14.0, 22.0, d));
+
+  return p;
+}
+
 void main() {
   float raw = aIndex - 1.0;
   float layer = floor(raw / BASE_COUNT);
@@ -100,20 +138,27 @@ void main() {
 
   float tip = 0.0;
   float core = 0.0;
-  vec2 p = uVariant < 0.5
-    ? originalFormula(i, layer, tip, core)
-    : featherFormula(i, layer, tip, core);
+  vec2 p;
+  if (uVariant < 0.5) {
+    p = originalFormula(i, layer, tip, core);
+  } else if (uVariant < 1.5) {
+    p = featherFormula(i, layer, tip, core);
+  } else {
+    p = pulseFormula(i, layer, tip, core);
+  }
 
   float jitterSeed = i + layer * 127.13;
   vec2 jitter = vec2(hash(jitterSeed), hash(jitterSeed + 71.7)) - 0.5;
-  float jitterAmp = mix(0.12, 0.42, layer / 3.0) * (uVariant < 0.5 ? 1.0 : 0.72);
+  float jitterAmp = mix(0.12, 0.42, layer / 3.0) * (uVariant < 0.5 ? 1.0 : uVariant < 1.5 ? 0.72 : 0.86);
   p += jitter * jitterAmp;
 
-  float scale = (uVariant < 0.5 ? 170.0 : 118.0) / max(uZoom, 0.01);
+  float baseScale = uVariant < 0.5 ? 170.0 : uVariant < 1.5 ? 118.0 : 132.0;
+  float scale = baseScale / max(uZoom, 0.01);
   gl_Position = vec4(p / scale, 0.0, 1.0);
 
   float grain = hash(i * 3.17 + layer * 23.0);
-  float baseSize = mix(1.0, 1.65, tip) + uRms * 0.85 + grain * 0.22;
+  float thickness = uVariant < 0.5 ? 1.62 : uVariant < 1.5 ? 1.78 : 1.48;
+  float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
   vec3 white = vec3(1.18, 1.18, 1.12);

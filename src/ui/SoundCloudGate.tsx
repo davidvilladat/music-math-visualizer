@@ -14,6 +14,7 @@ const MODES: { key: VisualMode; label: string }[] = [
   { key: 'nova', label: 'Nova' },
   { key: 'formula', label: 'Formula' },
   { key: 'feather', label: 'Feather' },
+  { key: 'pulse', label: 'Pulse' },
 ]
 
 interface Props {
