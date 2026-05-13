@@ -41,6 +41,19 @@ vec2 rotate2(vec2 p, float a) {
   return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
 }
 
+float signedInv(float v, float minAbs) {
+  return sign(v) / max(abs(v), minAbs);
+}
+
+float safeTan(float v) {
+  return clamp(tan(v), -8.0, 8.0);
+}
+
+float attractorF(float x) {
+  float u = -0.8;
+  return u * x + 2.0 * (1.0 - u) * x * x / (1.0 + x * x);
+}
+
 vec2 originalFormula(float i, float layer, out float tip, out float core) {
   float x = i + layer * 0.31;
   float y = x / 235.0;
@@ -317,6 +330,250 @@ vec2 flareFormula(float raw, out float tip, out float core) {
   return vec2(px - 200.0, -(py - 200.0));
 }
 
+vec2 surgeFormula(float raw, out float tip, out float core) {
+  float i = mod(raw, 10000.0) + 1.0;
+  float layer = floor(raw / 10000.0);
+  float x = i + layer * 0.33;
+  float y = i / 235.0 + layer * 0.08;
+  float k = (4.0 + sin(x / 11.0 + uTime * 8.0)) * cos(x / 14.0);
+  float e = y / 8.0 - 19.0;
+  float d = length(vec2(k, e)) + sin(y / 9.0 + uTime * 2.0);
+  float q = 2.0 * sin(k * 2.0) + sin(y / 17.0) * k * (9.0 + 2.0 * sin(y - d * 3.0));
+  float c = d * d / 49.0 - uTime;
+  float px = q + 50.0 * cos(c) + 200.0;
+  float py = q * sin(c) + d * 39.0 - 440.0;
+
+  float crest = smoothstep(0.55, 0.98, abs(sin(c)));
+  tip = crest * smoothstep(2.8, 5.0, abs(k));
+  core = smoothstep(3.0, 9.0, d) * (1.0 - smoothstep(14.0, 23.0, d));
+  return vec2(px - 200.0, -(py - 210.0));
+}
+
+vec2 lyraFormula(float raw, out float tip, out float core) {
+  float i = mod(raw, 10000.0) + 1.0;
+  float layer = floor(raw / 10000.0);
+  float x = i + layer * 0.21;
+  float y = i / 235.0 + layer * 0.06;
+  float k = (4.0 + cos(y)) * cos(x / 4.0);
+  float e = y / 8.0 - 20.0;
+  float d = length(vec2(k, e));
+  float q = sin(k * 3.0) + sin(y / 19.0 + 9.0) * k * (6.0 + sin(e * 14.0 - d));
+  float c = d - uTime;
+  float px = q * cos(d / 8.0 + uTime / 4.0) + 50.0 * cos(c) + 200.0;
+  float py = q * sin(c) + d * 7.0 * sin(c / 4.0) + 200.0;
+
+  tip = smoothstep(0.50, 0.96, abs(sin(c))) * smoothstep(3.0, 5.0, abs(k));
+  core = smoothstep(1.0, 7.0, d) * (1.0 - smoothstep(14.0, 24.0, d));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 veilFormula(float raw, out float tip, out float core) {
+  float i = mod(raw, 20000.0);
+  float layer = floor(raw / 20000.0);
+  float x = mod(i, 100.0);
+  float y = i / 250.0 + layer * 0.08;
+  float k = x / 4.0 - 12.5;
+  float e = y / 9.0 + 9.0;
+  float o = length(vec2(k, e)) / 9.0;
+  float invK = signedInv(k, 0.14);
+  float q = x + 99.0 + safeTan(invK)
+          + o * k * (cos(e * 9.0) / 2.0 + cos(y / 9.0) / 0.7) * sin(o * 4.0 - uTime * 2.0);
+  float c = o * e / 30.0 - uTime / 8.0;
+  float px = q * 0.7 * sin(c) + 200.0;
+  float py = 200.0 + y * cos(c * 4.0 - o) - q / 2.0 * cos(c);
+
+  tip = smoothstep(0.65, 0.98, abs(cos(c * 2.0))) * smoothstep(1.0, 3.2, o);
+  core = smoothstep(0.4, 1.8, o) * (1.0 - smoothstep(4.0, 7.0, o));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 emberFormula(float raw, out float tip, out float core) {
+  float i = raw;
+  float x = mod(i, 200.0);
+  float y = i / 200.0;
+  float k = x / 8.0 - 12.0;
+  float e = y / 8.0 - 12.0;
+  float o = 2.0 - length(vec2(k, e)) / 3.0;
+  float d = -5.0 * abs(sin(k / 2.0) * cos(e * 0.8));
+  float px = (x - d * k * 4.0 + d * k * sin(d + uTime)) * 0.7 + k * o * 2.0 + 130.0;
+  float py = (y - d * y / 5.0 + d * e * cos(d + uTime + o) * sin(uTime + d)) * 0.7 + e * o + 70.0;
+
+  tip = smoothstep(2.5, 5.0, abs(d)) * smoothstep(0.48, 0.96, abs(sin(uTime + d)));
+  core = smoothstep(-3.0, 1.5, o);
+  return vec2(px - 200.0, -(py - 190.0));
+}
+
+vec2 glintFormula(float raw, out float tip, out float core) {
+  float i = raw;
+  float x = mod(i, 200.0);
+  float y = i / 200.0;
+  float k = x / 8.0 - 12.5;
+  float e = y / 8.0 - 12.5;
+  float o = dot(vec2(k, e), vec2(k, e)) / 169.0;
+  float d = 0.5 + 5.0 * cos(o);
+  float spark = pow(abs(d * sin(k) * sin(uTime * 4.0 + e)), 2.0);
+  float px = x + d * k * sin(d * 2.0 + o + uTime) + e * cos(e + uTime) + 100.0;
+  float py = o * 135.0 - y / 4.0 - d * 6.0 * cos(d * 3.0 + o * 9.0 + uTime) + 125.0;
+
+  tip = clamp(spark * 0.05, 0.0, 1.0);
+  core = smoothstep(0.1, 2.0, abs(d));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 waveFormula(float raw, out float tip, out float core) {
+  float sample = mod(raw, 20200.0);
+  float detail = floor(raw / 20200.0);
+  float row = floor(sample / 200.0);
+  float col = mod(sample, 200.0);
+  float x = 100.0 + col;
+  float y = 99.0 + row * 2.0 + detail * 0.35;
+  float k = x / 8.0 - 25.0;
+  float e = y / 8.0 - 25.0;
+  float d = cos(length(vec2(k, e)) / 3.0) * e / 5.0;
+  float q = x / 4.0 + k * signedInv(cos(y / 9.0), 0.08) * sin(d * 9.0 - uTime) + 25.0;
+  float c = d - uTime / 8.0;
+  float px = q * sin(c) + 200.0;
+  float py = (q * 2.0 + x + y / 2.0 + d * 90.0) / 4.0 * cos(c) + 200.0;
+
+  tip = smoothstep(0.60, 0.98, abs(sin(d * 2.0 - uTime))) * smoothstep(4.0, 8.5, abs(d));
+  core = smoothstep(0.5, 5.0, abs(d));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 cycloneFormula(float raw, out float tip, out float core) {
+  float i = mod(raw, 10000.0) + 1.0;
+  float layer = floor(raw / 10000.0);
+  float x = i + layer * 0.23;
+  float y = i / 41.0 + layer * 0.08;
+  float k = 5.0 * cos(x / 19.0) * cos(y / 30.0);
+  float e = y / 8.0 - 12.0;
+  float d = dot(vec2(k, e), vec2(k, e)) / 59.0 + 2.0;
+  float q = 4.0 * sin(atan(k, e) * 9.0) + 9.0 * sin(d - uTime)
+          - k / max(d, 0.08) * (9.0 + sin(d * 9.0 - uTime * 16.0) * 3.0);
+  float c = d * d / 7.0 - uTime;
+  float px = q + 50.0 * cos(c) + 200.0;
+  float py = q * sin(c) + d * 45.0 - 9.0;
+
+  tip = smoothstep(0.55, 0.98, abs(sin(c))) * smoothstep(3.0, 5.0, abs(k));
+  core = smoothstep(2.0, 8.0, d) * (1.0 - smoothstep(15.0, 28.0, d));
+  return vec2(px - 200.0, -(py - 210.0));
+}
+
+vec2 latticeFormula(float raw, out float tip, out float core) {
+  float sample = mod(raw, 13400.0);
+  float detail = floor(raw / 13400.0);
+  float row = floor(sample / 200.0);
+  float col = mod(sample, 200.0);
+  float x = 100.0 + col;
+  float y = 99.0 + row * 3.0 + detail * 0.45;
+  float k = x / 8.0 - 25.0;
+  float e = y / 8.0 - 25.0;
+  float o = length(vec2(k, e)) / 4.0;
+  float c = o * e / 50.0 - uTime / 8.0;
+  float q = x + y / 3.0 + k * signedInv(cos(y / 8.0), 0.08) + signedInv(k, 0.12)
+          + o * k * cos(y / 8.0 - uTime) * sin(o * 4.0 - uTime);
+  float px = q / 3.0 * atan(2.0 * sin(c)) + 200.0;
+  float py = (y * safeTan(c) + q) / 3.0 * cos(c) + 200.0;
+
+  tip = smoothstep(0.62, 0.98, abs(cos(c * 2.0))) * smoothstep(3.0, 8.0, o);
+  core = smoothstep(2.0, 6.0, o) * (1.0 - smoothstep(8.0, 13.0, o));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 petalFormula(float raw, out float tip, out float core) {
+  float i = mod(raw, 30000.0);
+  float layer = floor(raw / 30000.0);
+  float x = mod(i, 100.0);
+  float y = i / 350.0 + layer * 0.08;
+  float k = x / 4.0 - 12.5;
+  float e = y / 9.0;
+  float o = length(vec2(k, e)) / 9.0;
+  float q = 99.0 + 3.0 * (safeTan(y / 2.0) / 2.0 + cos(y)) * signedInv(k, 0.14)
+          + k * (3.0 + cos(y) / 3.0 + sin(e + o * 4.0 - uTime * 2.0));
+  float c = o / 4.0 + e / 4.0 - uTime / 8.0;
+  float px = q * cos(c) * cos(c / 2.0 - e / 3.0 + uTime / 8.0) + 200.0;
+  float py = q * sin(c) + 200.0;
+
+  tip = smoothstep(0.55, 0.98, abs(sin(c * 2.0))) * smoothstep(1.0, 3.2, o);
+  core = smoothstep(0.3, 1.6, o) * (1.0 - smoothstep(3.5, 6.0, o));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 cometFormula(float raw, out float tip, out float core) {
+  float i = mod(raw, 30000.0) + 1.0;
+  float y = i / 799.0;
+  float k = 5.0 * cos(i / 48.0);
+  float e = 5.0 * cos(y / 9.0);
+  float d = pow(length(vec2(k, e)) / (6.0 + mod(i, 4.0)), 4.0) + 4.0;
+  float parityTerm = mix(-1.0, -2.0, step(0.5, mod(floor(i), 2.0)));
+  float q = k * (3.0 + e / 2.0 * sin(d * 8.0 + k / 9.0 - uTime))
+          - 3.0 * sin(k * d / 3.0)
+          - parityTerm * 80.0;
+  float c = d - uTime / 9.0 + mod(i, 5.0);
+  float px = q * sin(c) + 200.0;
+  float py = q * cos(c - mod(i, 2.0) + mod(i, 5.0) * 3.0 + 7.0) + 200.0;
+
+  tip = smoothstep(0.55, 0.98, abs(sin(c))) * smoothstep(4.0, 7.0, d);
+  core = smoothstep(3.5, 5.5, d) * (1.0 - smoothstep(8.0, 12.0, d));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 chromaFormula(float raw, out float tip, out float core) {
+  float x = 100.0 + mod(raw, 200.0);
+  float y = 100.0 + floor(raw / 200.0);
+  float k = x / 8.0 - 25.0;
+  float e = y / 8.0 - 25.0;
+  float o = length(vec2(k, e)) / 3.0;
+  float d = 5.0 * cos(o);
+  float denom = atan(9.0 * cos(e));
+  float q = x / 2.0 + k * signedInv(denom, 0.12) * sin(d * 4.0 - uTime);
+  float c = d / 3.0 - uTime / 8.0;
+  float px = q * sin(c) + 200.0;
+  float py = (y / 3.0 + d + q) / 2.0 * cos(c) + 200.0;
+
+  tip = smoothstep(0.55, 0.98, abs(sin(d * 1.4 + uTime))) * smoothstep(2.0, 5.0, abs(d));
+  core = smoothstep(1.0, 7.0, o) * (1.0 - smoothstep(8.0, 13.0, o));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 attractorFormula(float raw, out float tip, out float core) {
+  float x = 1.0 + (hash(raw * 1.7) - 0.5) * 0.05;
+  float y = 1.0 + (hash(raw * 2.3 + 11.0) - 0.5) * 0.05;
+  float target = 6.0 + mod(raw, 36.0);
+  for (int j = 0; j < 42; j++) {
+    float active = step(float(j), target);
+    float n = y + (1.0 - 0.06 * y * y) * 0.003 * y + attractorF(x);
+    float nextX = n;
+    float nextY = attractorF(n) - x;
+    x = mix(x, nextX, active);
+    y = mix(y, nextY, active);
+  }
+  float c = uTime - length(vec2(x, y)) / 4.0;
+  float px = y * (5.0 * sin(c) + 11.0) + 205.0;
+  float py = x * (2.0 * cos(c) + 7.0) + 9.0 * sin(y / 4.0 + uTime) + 185.0;
+
+  float r = length(vec2(x, y));
+  tip = smoothstep(0.3, 1.4, r) * smoothstep(0.55, 0.98, abs(sin(c)));
+  core = smoothstep(0.1, 1.1, r);
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+vec2 prismFormula(float raw, out float tip, out float core) {
+  float i = raw + 7.0;
+  float sector = mod(floor(raw), 3.0);
+  float k = mod(i, 25.0) - 12.0;
+  float e = i / 800.0;
+  float d = 7.0 * cos(length(vec2(k, e)) / 3.0 + uTime / 2.0);
+  float px = k * 4.0 + d * k * sin(d + e / 9.0 + uTime) + 200.0;
+  float py = e * 2.0 - d * 9.0 - d * 9.0 * cos(d + uTime) + 200.0;
+  vec2 p = vec2(px - 200.0, -(py - 200.0));
+  p = rotate2(p, sector * 2.0943951);
+
+  tip = smoothstep(4.0, 7.0, abs(d)) * smoothstep(0.55, 0.98, abs(sin(e + uTime)));
+  core = smoothstep(0.5, 5.0, abs(d));
+  return p;
+}
+
 void main() {
   float raw = aIndex - 1.0;
   float layer = floor(raw / BASE_COUNT);
@@ -347,8 +604,34 @@ void main() {
     p = fieldFormula(raw, tip, core);
   } else if (uVariant < 10.5) {
     p = echoFormula(raw, tip, core);
-  } else {
+  } else if (uVariant < 11.5) {
     p = flareFormula(raw, tip, core);
+  } else if (uVariant < 12.5) {
+    p = surgeFormula(raw, tip, core);
+  } else if (uVariant < 13.5) {
+    p = lyraFormula(raw, tip, core);
+  } else if (uVariant < 14.5) {
+    p = veilFormula(raw, tip, core);
+  } else if (uVariant < 15.5) {
+    p = emberFormula(raw, tip, core);
+  } else if (uVariant < 16.5) {
+    p = glintFormula(raw, tip, core);
+  } else if (uVariant < 17.5) {
+    p = waveFormula(raw, tip, core);
+  } else if (uVariant < 18.5) {
+    p = cycloneFormula(raw, tip, core);
+  } else if (uVariant < 19.5) {
+    p = latticeFormula(raw, tip, core);
+  } else if (uVariant < 20.5) {
+    p = petalFormula(raw, tip, core);
+  } else if (uVariant < 21.5) {
+    p = cometFormula(raw, tip, core);
+  } else if (uVariant < 22.5) {
+    p = chromaFormula(raw, tip, core);
+  } else if (uVariant < 23.5) {
+    p = attractorFormula(raw, tip, core);
+  } else {
+    p = prismFormula(raw, tip, core);
   }
 
   float beatEnvelope = exp(-uBeatPhase * 6.5);
@@ -390,7 +673,20 @@ void main() {
   else if (uVariant < 8.5) baseScale = 136.0;
   else if (uVariant < 9.5) baseScale = 112.0;
   else if (uVariant < 10.5) baseScale = 132.0;
-  else baseScale = 145.0;
+  else if (uVariant < 11.5) baseScale = 145.0;
+  else if (uVariant < 12.5) baseScale = 168.0;
+  else if (uVariant < 13.5) baseScale = 118.0;
+  else if (uVariant < 14.5) baseScale = 132.0;
+  else if (uVariant < 15.5) baseScale = 126.0;
+  else if (uVariant < 16.5) baseScale = 142.0;
+  else if (uVariant < 17.5) baseScale = 150.0;
+  else if (uVariant < 18.5) baseScale = 165.0;
+  else if (uVariant < 19.5) baseScale = 134.0;
+  else if (uVariant < 20.5) baseScale = 128.0;
+  else if (uVariant < 21.5) baseScale = 190.0;
+  else if (uVariant < 22.5) baseScale = 145.0;
+  else if (uVariant < 23.5) baseScale = 42.0;
+  else baseScale = 126.0;
   float scale = baseScale / max(uZoom, 0.01);
   gl_Position = vec4(p / scale, 0.0, 1.0);
 
@@ -408,6 +704,14 @@ void main() {
   vec3 col = mix(faint, white, ink);
   col = mix(col, red, smoothstep(0.42, 0.92, tip));
   col = mix(col, vec3(1.0), uBeatPulse * 0.12);
+  if (uVariant > 15.5 && uVariant < 16.5) {
+    vec3 ember = vec3(1.0, 0.34, 0.04);
+    col = mix(col, ember, smoothstep(0.25, 0.95, tip) * 0.45);
+  }
+  if (uVariant > 21.5 && uVariant < 22.5) {
+    vec3 chroma = 0.58 + 0.42 * cos(vec3(0.0, 2.1, 4.2) + p.x * 0.018 + p.y * 0.014 + uTime);
+    col = mix(col, chroma, 0.48);
+  }
 
   vColor = col;
   vTip = tip;

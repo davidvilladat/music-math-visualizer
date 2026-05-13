@@ -18,6 +18,19 @@ const MODES: { key: VisualMode; label: string }[] = [
   { key: 'field', label: 'Field' },
   { key: 'echo', label: 'Echo' },
   { key: 'flare', label: 'Flare' },
+  { key: 'surge', label: 'Surge' },
+  { key: 'lyra', label: 'Lyra' },
+  { key: 'veil', label: 'Veil' },
+  { key: 'ember', label: 'Ember' },
+  { key: 'glint', label: 'Glint' },
+  { key: 'wave', label: 'Wave' },
+  { key: 'cyclone', label: 'Cyclone' },
+  { key: 'lattice', label: 'Lattice' },
+  { key: 'petal', label: 'Petal' },
+  { key: 'comet', label: 'Comet' },
+  { key: 'chroma', label: 'Chroma' },
+  { key: 'attractor', label: 'Attractor' },
+  { key: 'prism', label: 'Prism' },
 ]
 
 interface Props {

@@ -37,6 +37,19 @@ const FORMULA_VARIANTS: Partial<Record<DevParams['visualMode'], number>> = {
   field: 9,
   echo: 10,
   flare: 11,
+  surge: 12,
+  lyra: 13,
+  veil: 14,
+  ember: 15,
+  glint: 16,
+  wave: 17,
+  cyclone: 18,
+  lattice: 19,
+  petal: 20,
+  comet: 21,
+  chroma: 22,
+  attractor: 23,
+  prism: 24,
 }
 
 const REACTIVITY_VALUES: Record<DevParams['reactivity'], number> = {
@@ -343,7 +356,7 @@ export class Renderer {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
-      const modes = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'] as const
+      const modes = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'] as const
       const next = modes[(modes.indexOf(devParams.visualMode as typeof modes[number]) + 1) % modes.length]
       setDevParams({ visualMode: next })
     }

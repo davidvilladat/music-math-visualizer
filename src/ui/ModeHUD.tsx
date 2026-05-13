@@ -20,6 +20,19 @@ const LABEL: Record<string, string> = {
   field: 'FIELD',
   echo: 'ECHO',
   flare: 'FLARE',
+  surge: 'SURGE',
+  lyra: 'LYRA',
+  veil: 'VEIL',
+  ember: 'EMBER',
+  glint: 'GLINT',
+  wave: 'WAVE',
+  cyclone: 'CYCLONE',
+  lattice: 'LATTICE',
+  petal: 'PETAL',
+  comet: 'COMET',
+  chroma: 'CHROMA',
+  attractor: 'ATTRACTOR',
+  prism: 'PRISM',
 }
 
 export function ModeHUD() {

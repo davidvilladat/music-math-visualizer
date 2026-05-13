@@ -20,6 +20,19 @@ const MODES: { key: VisualMode; label: string; accent: string }[] = [
   { key: 'field', label: 'Field', accent: '#e5e7eb' },
   { key: 'echo', label: 'Echo', accent: '#c084fc' },
   { key: 'flare', label: 'Flare', accent: '#fb7185' },
+  { key: 'surge', label: 'Surge', accent: '#ef4444' },
+  { key: 'lyra', label: 'Lyra', accent: '#f9a8d4' },
+  { key: 'veil', label: 'Veil', accent: '#2dd4bf' },
+  { key: 'ember', label: 'Ember', accent: '#fb923c' },
+  { key: 'glint', label: 'Glint', accent: '#fef08a' },
+  { key: 'wave', label: 'Wave', accent: '#7dd3fc' },
+  { key: 'cyclone', label: 'Cyclone', accent: '#fca5a5' },
+  { key: 'lattice', label: 'Lattice', accent: '#a7f3d0' },
+  { key: 'petal', label: 'Petal', accent: '#f0abfc' },
+  { key: 'comet', label: 'Comet', accent: '#ddd6fe' },
+  { key: 'chroma', label: 'Chroma', accent: '#67e8f9' },
+  { key: 'attractor', label: 'Attractor', accent: '#f4f4f5' },
+  { key: 'prism', label: 'Prism', accent: '#c4b5fd' },
 ]
 
 const REACTIVITY: { key: Reactivity; label: string }[] = [

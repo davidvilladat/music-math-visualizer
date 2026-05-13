@@ -134,6 +134,19 @@ export class FormulaScene {
       { tempo: 0.5, energy: 1.1, bass: 1.0, mid: 0.9, high: 1.4, beat: 0.6 },
       { tempo: 0.9, energy: 1.0, bass: 0.9, mid: 1.1, high: 1.5, beat: 0.9 },
       { tempo: 1.0, energy: 1.2, bass: 1.3, mid: 1.1, high: 1.0, beat: 1.4 },
+      { tempo: 1.5, energy: 0.9, bass: 1.2, mid: 1.1, high: 0.9, beat: 1.5 },
+      { tempo: 0.8, energy: 0.7, bass: 0.7, mid: 1.3, high: 1.4, beat: 0.9 },
+      { tempo: 1.0, energy: 1.1, bass: 1.0, mid: 1.5, high: 0.9, beat: 1.0 },
+      { tempo: 0.9, energy: 1.4, bass: 1.6, mid: 0.8, high: 0.8, beat: 1.6 },
+      { tempo: 1.4, energy: 0.9, bass: 0.8, mid: 1.0, high: 1.8, beat: 1.1 },
+      { tempo: 1.0, energy: 1.2, bass: 1.4, mid: 1.0, high: 1.0, beat: 1.3 },
+      { tempo: 1.6, energy: 1.0, bass: 1.2, mid: 0.9, high: 1.1, beat: 1.7 },
+      { tempo: 0.7, energy: 1.3, bass: 0.9, mid: 1.1, high: 1.5, beat: 0.8 },
+      { tempo: 0.9, energy: 1.0, bass: 1.0, mid: 1.5, high: 1.0, beat: 0.9 },
+      { tempo: 1.2, energy: 1.1, bass: 1.3, mid: 0.9, high: 1.0, beat: 1.2 },
+      { tempo: 1.1, energy: 1.2, bass: 1.0, mid: 1.0, high: 1.7, beat: 0.9 },
+      { tempo: 0.6, energy: 0.8, bass: 0.6, mid: 1.0, high: 1.6, beat: 0.7 },
+      { tempo: 1.3, energy: 1.0, bass: 1.1, mid: 1.2, high: 1.2, beat: 1.1 },
     ]
     return profiles[Math.max(0, Math.min(profiles.length - 1, Math.round(variant)))]
   }

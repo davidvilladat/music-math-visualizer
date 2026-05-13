@@ -8,6 +8,39 @@ export interface TrackInfo {
   duration:   number  // ms
 }
 
+export type VisualMode =
+  | 'fluid'
+  | 'streamlines'
+  | 'hybrid'
+  | 'electric'
+  | 'neon'
+  | 'nova'
+  | 'formula'
+  | 'feather'
+  | 'pulse'
+  | 'grid'
+  | 'orbit'
+  | 'wing'
+  | 'bloom'
+  | 'ribbon'
+  | 'helix'
+  | 'field'
+  | 'echo'
+  | 'flare'
+  | 'surge'
+  | 'lyra'
+  | 'veil'
+  | 'ember'
+  | 'glint'
+  | 'wave'
+  | 'cyclone'
+  | 'lattice'
+  | 'petal'
+  | 'comet'
+  | 'chroma'
+  | 'attractor'
+  | 'prism'
+
 export interface DevParams {
   tauSubBass: number
   tauBass: number
@@ -40,7 +73,7 @@ export interface DevParams {
   dipoleRadius: number
   psiDissipation: number
   // particles
-  visualMode: 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse' | 'grid' | 'orbit' | 'wing' | 'bloom' | 'ribbon' | 'helix' | 'field' | 'echo' | 'flare'
+  visualMode: VisualMode
   reactivity: 'subtle' | 'balanced' | 'intense' | 'frenetic'
   particleSpeed: number
   particleRespawnRate: number

@@ -1,5 +1,5 @@
 import { useControls, folder } from 'leva'
-import { useStore } from '../state/store'
+import { useStore, type VisualMode } from '../state/store'
 import { useEffect } from 'react'
 
 export function DevPanel() {
@@ -73,7 +73,7 @@ export function DevPanel() {
       formulaBandWarp:       { value: 1.0,  min: 0.0, max: 3.0, step: 0.05, label: 'Band warp' },
     }, { collapsed: true }),
     Particles: folder({
-      visualMode:          { value: 'formula', options: ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'], label: 'Visual mode (V)' },
+      visualMode:          { value: 'formula', options: ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'], label: 'Visual mode (V)' },
       reactivity:          { value: 'balanced', options: ['subtle', 'balanced', 'intense', 'frenetic'], label: 'Reactivity' },
       magneticBlend:       { value: 0.6,   min: 0.0,   max: 1.0,   step: 0.05,  label: 'Mag blend (0=vel,1=B)' },
       particleSpeed:       { value: 8.0,   min: 1.0,   max: 30.0,  step: 0.5,   label: 'Particle speed' },
@@ -87,7 +87,7 @@ export function DevPanel() {
   useEffect(() => {
     setDevParams({
       ...values,
-      visualMode: values.visualMode as 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse' | 'grid' | 'orbit' | 'wing' | 'bloom' | 'ribbon' | 'helix' | 'field' | 'echo' | 'flare',
+      visualMode: values.visualMode as VisualMode,
       reactivity: values.reactivity as 'subtle' | 'balanced' | 'intense' | 'frenetic',
     })
   }, [values, setDevParams])
