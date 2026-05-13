@@ -29,6 +29,7 @@ export function DebugOverlay({ renderer }: Props) {
           `RMS: ${f.rms.toFixed(3)}`,
           `Centroid: ${f.centroid.toFixed(3)}`,
           `Flux: ${f.flux.toFixed(3)}`,
+          `BPM: ${f.bpm ? f.bpm.toFixed(1) : '--'} (${f.bpmConfidence.toFixed(2)})`,
           `Rolloff: ${f.rolloff.toFixed(3)}`,
           `Beat: ${f.beatPulse.toFixed(3)}`,
           `SubBass: ${f.subBass.toFixed(3)}`,

@@ -10,8 +10,18 @@ uniform float uBrightness;
 uniform float uBass;
 uniform float uMid;
 uniform float uBrilliance;
+uniform float uFlux;
 uniform float uBeatPulse;
 uniform float uRms;
+uniform float uTempoRate;
+uniform float uBandWarp;
+uniform float uBeatPhase;
+uniform float uBarPhase;
+uniform float uPhrasePhase;
+uniform float uBarPulse;
+uniform float uSectionEnergy;
+uniform float uReactivity;
+uniform vec4  uProfile; // bass, mid, high, beat
 uniform vec2  uResolution;
 
 varying vec3  vColor;
@@ -40,13 +50,13 @@ vec2 originalFormula(float i, float layer, out float tip, out float core) {
   float d = length(vec2(k, e));
   float safeInvK = sign(k) / max(abs(k), 0.1);
 
-  float waveInner = 9.0 + uMid * 6.0 * uWaveAmp;
+  float waveInner = 9.0 + uMid * 6.0 * uWaveAmp * uBandWarp;
   float q = 3.0 * sin(k * 2.0)
           + 0.3 * safeInvK
           + sin(y / 19.0) * k * (waveInner + 2.0 * uWaveAmp * sin(e * 14.0 - d * 3.0 + uTime * 2.0));
 
   float c = d - uTime;
-  float armR = 50.0 + uBass * 40.0;
+  float armR = 50.0 + uBass * 40.0 * uBandWarp;
   float px = q + armR * cos(c) + 200.0;
   float py = q * sin(c) + d * 39.0 - 475.0;
 
@@ -73,7 +83,7 @@ vec2 featherFormula(float i, float layer, out float tip, out float core) {
   float parity = mod(i, 2.0);
 
   float q = y * k / 5.0 * (2.0 + sin(d * 2.0 + y - uTime * 4.0));
-  q *= 1.0 + uMid * 0.18 * uWaveAmp;
+  q *= 1.0 + uMid * 0.18 * uWaveAmp * uBandWarp;
 
   float c = d / 3.0 - uTime / 2.0 + parity;
   float px = q + 90.0 * cos(c) + 200.0;
@@ -111,7 +121,7 @@ vec2 pulseFormula(float i, float layer, out float tip, out float core) {
           + sin(y / 25.0) * k * (
               9.0 + 4.0 * uWaveAmp * sin(e * 9.0 - d * 3.0 + uTime * 2.0)
             );
-  q *= 1.0 + uMid * 0.14;
+  q *= 1.0 + uMid * 0.14 * uBandWarp;
 
   float c = d - uTime;
   float px = q + 30.0 * cos(c) + 200.0;
@@ -341,6 +351,28 @@ void main() {
     p = flareFormula(raw, tip, core);
   }
 
+  float beatEnvelope = exp(-uBeatPhase * 6.5);
+  float phraseSwing = sin(uPhrasePhase * 6.2831853);
+  float barBreath = sin(uBarPhase * 6.2831853);
+  float bassDrive = uBass * uProfile.x * uReactivity;
+  float midDrive = uMid * uProfile.y * uReactivity;
+  float highDrive = uBrilliance * uProfile.z * uReactivity;
+  float beatDrive = max(uBeatPulse, beatEnvelope * 0.36 + uBarPulse * 0.24) * uProfile.w * uReactivity;
+
+  tip = clamp(tip + beatDrive * 0.12 + uBarPulse * 0.10 * uProfile.w, 0.0, 1.0);
+  core = clamp(core + uSectionEnergy * 0.12, 0.0, 1.0);
+
+  p = rotate2(p, phraseSwing * uSectionEnergy * 0.055 * uReactivity);
+  p *= 1.0 + (uBarPulse * 0.045 + uSectionEnergy * 0.055 + bassDrive * 0.025);
+
+  float audioWarp = uBandWarp * (bassDrive * 0.95 + midDrive * 0.42 + uFlux * 0.55 * uReactivity);
+  vec2 flowWarp = vec2(
+    sin(p.y * 0.032 + uTime * (1.35 + uTempoRate * 0.35)),
+    cos(p.x * 0.028 - uTime * (1.10 + uTempoRate * 0.45))
+  );
+  p *= 1.0 + audioWarp * 0.045;
+  p += flowWarp * audioWarp * (2.6 + beatDrive * 3.2 + abs(barBreath) * 1.1);
+
   float jitterSeed = i + layer * 127.13;
   vec2 jitter = vec2(hash(jitterSeed), hash(jitterSeed + 71.7)) - 0.5;
   float jitterAmp = mix(0.12, 0.42, layer / 3.0) * (uVariant < 0.5 ? 1.0 : uVariant < 1.5 ? 0.72 : 0.86);
@@ -364,15 +396,15 @@ void main() {
 
   float grain = hash(i * 3.17 + layer * 23.0);
   float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : 1.44;
-  float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + grain * 0.26) * thickness;
+  float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp + beatDrive * 0.18 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
   vec3 white = vec3(1.18, 1.18, 1.12);
   vec3 red = vec3(1.0, 0.02, 0.0);
   vec3 faint = vec3(0.12, 0.13, 0.12);
 
-  float strand = smoothstep(0.18, 0.82, core + grain * 0.58);
-  float ink = 0.50 + strand * 0.62 + uBrilliance * 0.22 + core * 0.18;
+  float strand = smoothstep(0.18, 0.82, core + grain * 0.58 + uFlux * 0.10 * uBandWarp * uReactivity);
+  float ink = 0.50 + strand * 0.62 + highDrive * 0.24 * uBandWarp + core * 0.18;
   vec3 col = mix(faint, white, ink);
   col = mix(col, red, smoothstep(0.42, 0.92, tip));
   col = mix(col, vec3(1.0), uBeatPulse * 0.12);
@@ -384,6 +416,8 @@ void main() {
          + tip * 0.36
          + strand * 0.16
          + core * 0.08
-         + uBrilliance * 0.05
-         + uBeatPulse * 0.10;
+         + highDrive * 0.06 * uBandWarp
+         + uFlux * 0.06 * uBandWarp * uReactivity
+         + beatDrive * 0.10
+         + uBarPulse * 0.04 * uProfile.w;
 }

@@ -5,14 +5,9 @@ import { getPlayer } from '../spotify/player'
 import type { DevParams } from '../state/store'
 
 type VisualMode = DevParams['visualMode']
+type Reactivity = DevParams['reactivity']
 
 const MODES: { key: VisualMode; label: string; accent: string }[] = [
-  { key: 'hybrid', label: 'Hybrid', accent: '#ec4899' },
-  { key: 'fluid', label: 'Fluid', accent: '#00d4ff' },
-  { key: 'streamlines', label: 'Lines', accent: '#8b5cf6' },
-  { key: 'electric', label: 'Electric', accent: '#facc15' },
-  { key: 'neon', label: 'Neon', accent: '#ff00dc' },
-  { key: 'nova', label: 'Nova', accent: '#ff7814' },
   { key: 'formula', label: 'Formula', accent: '#ff1f1f' },
   { key: 'feather', label: 'Feather', accent: '#f8fafc' },
   { key: 'pulse', label: 'Pulse', accent: '#38bdf8' },
@@ -27,6 +22,13 @@ const MODES: { key: VisualMode; label: string; accent: string }[] = [
   { key: 'flare', label: 'Flare', accent: '#fb7185' },
 ]
 
+const REACTIVITY: { key: Reactivity; label: string }[] = [
+  { key: 'subtle', label: 'Subtle' },
+  { key: 'balanced', label: 'Balanced' },
+  { key: 'intense', label: 'Intense' },
+  { key: 'frenetic', label: 'Frenetic' },
+]
+
 interface Props {
   onChangeSource?: () => void
 }
@@ -35,6 +37,7 @@ export function TopBar({ onChangeSource }: Props) {
   const track = useStore((s) => s.currentTrack)
   const isPlaying = useStore((s) => s.isPlaying)
   const visualMode = useStore((s) => s.devParams.visualMode)
+  const reactivity = useStore((s) => s.devParams.reactivity)
   const setDevParams = useStore((s) => s.setDevParams)
 
   const [visible, setVisible] = useState(true)
@@ -120,6 +123,19 @@ export function TopBar({ onChangeSource }: Props) {
           {MODES.map((mode) => (
             <option key={mode.key} value={mode.key} style={{ background: '#070707', color: mode.accent }}>
               {mode.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label="Reactivity"
+          value={reactivity}
+          onChange={(e) => setDevParams({ reactivity: e.target.value as Reactivity })}
+          style={reactivitySelect}
+        >
+          {REACTIVITY.map((item) => (
+            <option key={item.key} value={item.key} style={{ background: '#070707', color: '#f4f4f5' }}>
+              {item.label}
             </option>
           ))}
         </select>
@@ -278,4 +294,12 @@ const sourceButton: CSSProperties = {
   fontWeight: 650,
   padding: '0 10px',
   cursor: 'pointer',
+}
+
+const reactivitySelect: CSSProperties = {
+  ...modeSelect,
+  maxWidth: 104,
+  borderColor: 'rgba(255,255,255,0.14)',
+  color: 'rgba(255,255,255,0.74)',
+  background: 'rgba(255,255,255,0.06)',
 }

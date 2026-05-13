@@ -41,6 +41,7 @@ export interface DevParams {
   psiDissipation: number
   // particles
   visualMode: 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse' | 'grid' | 'orbit' | 'wing' | 'bloom' | 'ribbon' | 'helix' | 'field' | 'echo' | 'flare'
+  reactivity: 'subtle' | 'balanced' | 'intense' | 'frenetic'
   particleSpeed: number
   particleRespawnRate: number
   particleTrailDecay: number
@@ -60,6 +61,10 @@ export interface DevParams {
   formulaZoom:       number
   formulaWaveAmp:    number
   formulaBrightness: number
+  formulaTempoInfluence: number
+  formulaEnergyInfluence: number
+  formulaBeatKick: number
+  formulaBandWarp: number
   // post-process
   bloomThreshold: number
   bloomKnee: number
@@ -112,7 +117,8 @@ const DEFAULT_DEV_PARAMS: DevParams = {
   dipoleStrength: 0.08,
   dipoleRadius: 0.2,
   psiDissipation: 0.998,
-  visualMode: 'hybrid' as const,
+  visualMode: 'formula' as const,
+  reactivity: 'balanced',
   particleSpeed: 8.0,
   particleRespawnRate: 0.002,
   particleTrailDecay: 0.94,
@@ -129,6 +135,10 @@ const DEFAULT_DEV_PARAMS: DevParams = {
   formulaZoom:       1.0,
   formulaWaveAmp:    1.0,
   formulaBrightness: 0.45,
+  formulaTempoInfluence: 0.65,
+  formulaEnergyInfluence: 0.35,
+  formulaBeatKick: 0.22,
+  formulaBandWarp: 1.0,
   bloomThreshold: 0.45,
   bloomKnee: 0.1,
   bloomStrength: 1.4,

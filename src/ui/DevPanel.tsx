@@ -67,9 +67,14 @@ export function DevPanel() {
       formulaZoom:       { value: 1.0,  min: 0.3,  max: 3.0,  step: 0.05, label: 'Zoom' },
       formulaWaveAmp:    { value: 1.0,  min: 0.0,  max: 4.0,  step: 0.1,  label: 'Wave amp' },
       formulaBrightness: { value: 0.45, min: 0.01, max: 1.00, step: 0.01, label: 'Brightness' },
+      formulaTempoInfluence: { value: 0.65, min: 0.0, max: 2.0, step: 0.05, label: 'Tempo influence' },
+      formulaEnergyInfluence:{ value: 0.35, min: 0.0, max: 2.0, step: 0.05, label: 'Energy speed' },
+      formulaBeatKick:       { value: 0.22, min: 0.0, max: 1.5, step: 0.05, label: 'Beat kick' },
+      formulaBandWarp:       { value: 1.0,  min: 0.0, max: 3.0, step: 0.05, label: 'Band warp' },
     }, { collapsed: true }),
     Particles: folder({
-      visualMode:          { value: 'hybrid', options: ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'], label: 'Visual mode (V)' },
+      visualMode:          { value: 'formula', options: ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'], label: 'Visual mode (V)' },
+      reactivity:          { value: 'balanced', options: ['subtle', 'balanced', 'intense', 'frenetic'], label: 'Reactivity' },
       magneticBlend:       { value: 0.6,   min: 0.0,   max: 1.0,   step: 0.05,  label: 'Mag blend (0=vel,1=B)' },
       particleSpeed:       { value: 8.0,   min: 1.0,   max: 30.0,  step: 0.5,   label: 'Particle speed' },
       particleRespawnRate: { value: 0.002, min: 0.0,   max: 0.02,  step: 0.001, label: 'Respawn rate' },
@@ -83,6 +88,7 @@ export function DevPanel() {
     setDevParams({
       ...values,
       visualMode: values.visualMode as 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse' | 'grid' | 'orbit' | 'wing' | 'bloom' | 'ribbon' | 'helix' | 'field' | 'echo' | 'flare',
+      reactivity: values.reactivity as 'subtle' | 'balanced' | 'intense' | 'frenetic',
     })
   }, [values, setDevParams])
 

@@ -14,7 +14,13 @@ export interface AudioFeatures {
 
   beatPulse: number    // 1.0 on beat, decays exponentially toward 0
   lastBeatTime: number // performance.now() timestamp of last beat
-  bpm: number | null   // null in phase 1
+  beatPhase: number    // 0..1 position through the current beat
+  barPhase: number     // 0..1 position through a 4-beat bar
+  phrasePhase: number  // 0..1 position through a 16-beat phrase
+  barPulse: number     // pulse near the start of each 4-beat bar
+  sectionEnergy: number // slow rolling musical intensity 0..1
+  bpm: number | null   // estimated tempo when confidence is high enough
+  bpmConfidence: number // 0..1 confidence for the tempo estimate
 
   spectrum: Float32Array // raw FFT magnitudes (FFT_SIZE/2 bins), 0..1
 }
@@ -36,7 +42,13 @@ export function makeAudioFeatures(): AudioFeatures {
     rolloff: 0,
     beatPulse: 0,
     lastBeatTime: 0,
+    beatPhase: 0,
+    barPhase: 0,
+    phrasePhase: 0,
+    barPulse: 0,
+    sectionEnergy: 0,
     bpm: null,
+    bpmConfidence: 0,
     spectrum: new Float32Array(BIN_COUNT),
   }
 }

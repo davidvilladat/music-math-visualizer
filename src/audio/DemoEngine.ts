@@ -14,7 +14,12 @@ export class DemoEngine {
     const beatPhase = (t * bps) % 1
     out.beatPulse    = Math.exp(-beatPhase * 7)
     out.lastBeatTime = (Math.floor(t * bps) / bps) * 1000
+    out.beatPhase    = beatPhase
+    out.barPhase     = (t * bps / 4) % 1
+    out.phrasePhase  = (t * bps / 16) % 1
+    out.barPulse     = Math.exp(-Math.min(out.barPhase, 1 - out.barPhase) * 18)
     out.bpm          = this.bpm
+    out.bpmConfidence = 1
 
     // Perceptual bands — each oscillates at its own rate
     out.subBass    = Math.abs(Math.sin(Math.PI * t * bps)) * 0.85 + 0.05
@@ -28,6 +33,7 @@ export class DemoEngine {
     out.centroid = out.mid
     out.flux     = Math.abs(Math.sin(Math.PI * t * 4.5)) * 0.5
     out.rolloff  = out.highMid
+    out.sectionEnergy = Math.min(1, out.rms * 0.75 + out.bass * 0.35 + out.flux * 0.3)
 
     // Spectrum: layered envelopes shaped like real music FFT
     const n = out.spectrum.length

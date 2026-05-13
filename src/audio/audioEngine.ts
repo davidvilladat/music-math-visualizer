@@ -33,10 +33,12 @@ export class AudioEngine {
     highMid:    new OnePole(0.18),
     brilliance: new OnePole(0.25),
     flux:       new OnePole(0.08),
+    sectionEnergy: new OnePole(6.0),
   }
 
   private beat = new BeatDetector()
   private lastTime = performance.now()
+  private musicalBeats = 0
 
   setOnEnded(cb: (() => void) | null): void {
     this.onEnded = cb
@@ -147,6 +149,22 @@ export class AudioEngine {
     })
     features.beatPulse    = this.beat.update(rawFlux, now, delta)
     features.lastBeatTime = this.beat.lastBeat
+    features.bpm          = this.beat.bpm
+    features.bpmConfidence = this.beat.bpmConfidence
+
+    const effectiveBpm = features.bpm ?? 120
+    const confidence = Math.max(0.2, features.bpmConfidence)
+    const beatsPerSecond = effectiveBpm / 60
+    this.musicalBeats += delta * beatsPerSecond * confidence
+    const beatDurationMs = 60_000 / effectiveBpm
+    const sinceBeat = features.lastBeatTime > 0 ? now - features.lastBeatTime : this.musicalBeats % 1 * beatDurationMs
+    features.beatPhase = Math.max(0, Math.min(1, sinceBeat / beatDurationMs))
+    features.barPhase = (this.musicalBeats / 4) % 1
+    features.phrasePhase = (this.musicalBeats / 16) % 1
+    const barDistance = Math.min(features.barPhase, 1 - features.barPhase)
+    features.barPulse = Math.exp(-barDistance * 18)
+    const rawSectionEnergy = Math.min(1, features.rms * 0.7 + features.bass * 0.45 + features.flux * 0.7)
+    features.sectionEnergy = this.smoothers.sectionEnergy.update(rawSectionEnergy)
 
     fillSpectrum(freq, features.spectrum)
   }

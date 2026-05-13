@@ -15,8 +15,11 @@ const DEFAULT_PARAMS: BeatDetectorParams = {
 export class BeatDetector {
   private params: BeatDetectorParams
   private history: number[] = []
+  private beatTimes: number[] = []
   private lastBeatTime = 0
   private pulse = 0
+  private bpmEstimate: number | null = null
+  private bpmConfidenceValue = 0
 
   constructor(params: Partial<BeatDetectorParams> = {}) {
     this.params = { ...DEFAULT_PARAMS, ...params }
@@ -43,6 +46,7 @@ export class BeatDetector {
     ) {
       this.lastBeatTime = now
       this.pulse = 1
+      this.recordBeat(now)
     } else {
       this.pulse *= Math.exp(-this.params.decayRate * deltaSeconds)
     }
@@ -50,6 +54,40 @@ export class BeatDetector {
     return this.pulse
   }
 
+  private recordBeat(now: number): void {
+    this.beatTimes.push(now)
+    const cutoff = now - 12_000
+    while (this.beatTimes.length > 0 && this.beatTimes[0] < cutoff) {
+      this.beatTimes.shift()
+    }
+
+    const intervals: number[] = []
+    for (let i = 1; i < this.beatTimes.length; i++) {
+      const interval = this.beatTimes[i] - this.beatTimes[i - 1]
+      if (interval >= 333 && interval <= 1000) intervals.push(interval)
+    }
+
+    if (intervals.length < 3) {
+      this.bpmConfidenceValue *= 0.92
+      return
+    }
+
+    const sorted = [...intervals].sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]
+    const bpm = 60_000 / median
+    const meanDeviation = intervals.reduce((sum, interval) => sum + Math.abs(interval - median), 0) / intervals.length
+    const consistency = Math.max(0, 1 - meanDeviation / median)
+    const sampleConfidence = Math.min(1, intervals.length / 8)
+    const confidence = consistency * sampleConfidence
+
+    this.bpmEstimate = this.bpmEstimate === null
+      ? bpm
+      : this.bpmEstimate + (bpm - this.bpmEstimate) * 0.18
+    this.bpmConfidenceValue = this.bpmConfidenceValue + (confidence - this.bpmConfidenceValue) * 0.25
+  }
+
   get lastBeat(): number { return this.lastBeatTime }
   get currentPulse(): number { return this.pulse }
+  get bpm(): number | null { return this.bpmConfidenceValue > 0.25 ? this.bpmEstimate : null }
+  get bpmConfidence(): number { return this.bpmConfidenceValue }
 }

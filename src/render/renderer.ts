@@ -39,6 +39,13 @@ const FORMULA_VARIANTS: Partial<Record<DevParams['visualMode'], number>> = {
   flare: 11,
 }
 
+const REACTIVITY_VALUES: Record<DevParams['reactivity'], number> = {
+  subtle: 0.45,
+  balanced: 1.0,
+  intense: 1.55,
+  frenetic: 2.25,
+}
+
 export class Renderer {
   private renderer: THREE.WebGLRenderer
   private camera: THREE.OrthographicCamera
@@ -242,6 +249,11 @@ export class Renderer {
         zoom:       devParams.formulaZoom,
         waveAmp:    devParams.formulaWaveAmp,
         brightness: devParams.formulaBrightness,
+        tempoInfluence: devParams.formulaTempoInfluence,
+        energyInfluence: devParams.formulaEnergyInfluence,
+        beatKick: devParams.formulaBeatKick,
+        bandWarp: devParams.formulaBandWarp,
+        reactivity: REACTIVITY_VALUES[devParams.reactivity],
       })
       this.formula.render(this.post.sourceRT)
     } else {
@@ -331,7 +343,7 @@ export class Renderer {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
-      const modes = ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'] as const
+      const modes = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'] as const
       const next = modes[(modes.indexOf(devParams.visualMode as typeof modes[number]) + 1) % modes.length]
       setDevParams({ visualMode: next })
     }
