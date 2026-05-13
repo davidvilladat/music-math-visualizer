@@ -11,7 +11,7 @@ import { FormulaScene } from './formula/FormulaScene'
 import { AudioEngine } from '../audio/audioEngine'
 import { DemoEngine } from '../audio/DemoEngine'
 import { makeAudioFeatures, type AudioFeatures } from '../audio/audioFeatures'
-import { useStore } from '../state/store'
+import { useStore, type DevParams } from '../state/store'
 
 function hueToRgb(h: number): [number, number, number] {
   const h6 = (h % 1) * 6
@@ -22,6 +22,21 @@ function hueToRgb(h: number): [number, number, number] {
   if (h6 < 4) return [0, x, 1]
   if (h6 < 5) return [x, 0, 1]
   return [1, 0, x]
+}
+
+const FORMULA_VARIANTS: Partial<Record<DevParams['visualMode'], number>> = {
+  formula: 0,
+  feather: 1,
+  pulse: 2,
+  grid: 3,
+  orbit: 4,
+  wing: 5,
+  bloom: 6,
+  ribbon: 7,
+  helix: 8,
+  field: 9,
+  echo: 10,
+  flare: 11,
 }
 
 export class Renderer {
@@ -219,10 +234,10 @@ export class Renderer {
       // ── Nova: supernova explosion ──────────────────────────────────────
       this.nova.update(dt, this.features)
       this.nova.render(this.post.sourceRT)
-    } else if (mode === 'formula' || mode === 'feather' || mode === 'pulse') {
+    } else if (mode in FORMULA_VARIANTS) {
       // ── Formula: parametric spiral point cloud ─────────────────────────
       this.formula.update(dt, this.features, {
-        variant:    mode === 'pulse' ? 2 : mode === 'feather' ? 1 : 0,
+        variant:    FORMULA_VARIANTS[mode] ?? 0,
         speed:      devParams.formulaSpeed,
         zoom:       devParams.formulaZoom,
         waveAmp:    devParams.formulaWaveAmp,
@@ -316,7 +331,7 @@ export class Renderer {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
-      const modes = ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse'] as const
+      const modes = ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'] as const
       const next = modes[(modes.indexOf(devParams.visualMode as typeof modes[number]) + 1) % modes.length]
       setDevParams({ visualMode: next })
     }

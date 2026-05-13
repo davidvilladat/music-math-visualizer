@@ -69,7 +69,7 @@ export function DevPanel() {
       formulaBrightness: { value: 0.45, min: 0.01, max: 1.00, step: 0.01, label: 'Brightness' },
     }, { collapsed: true }),
     Particles: folder({
-      visualMode:          { value: 'hybrid', options: ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse'], label: 'Visual mode (V)' },
+      visualMode:          { value: 'hybrid', options: ['fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare'], label: 'Visual mode (V)' },
       magneticBlend:       { value: 0.6,   min: 0.0,   max: 1.0,   step: 0.05,  label: 'Mag blend (0=vel,1=B)' },
       particleSpeed:       { value: 8.0,   min: 1.0,   max: 30.0,  step: 0.5,   label: 'Particle speed' },
       particleRespawnRate: { value: 0.002, min: 0.0,   max: 0.02,  step: 0.001, label: 'Respawn rate' },
@@ -82,7 +82,7 @@ export function DevPanel() {
   useEffect(() => {
     setDevParams({
       ...values,
-      visualMode: values.visualMode as 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse',
+      visualMode: values.visualMode as 'fluid' | 'streamlines' | 'hybrid' | 'electric' | 'neon' | 'nova' | 'formula' | 'feather' | 'pulse' | 'grid' | 'orbit' | 'wing' | 'bloom' | 'ribbon' | 'helix' | 'field' | 'echo' | 'flare',
     })
   }, [values, setDevParams])
 

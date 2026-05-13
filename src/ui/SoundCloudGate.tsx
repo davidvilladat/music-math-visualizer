@@ -15,6 +15,15 @@ const MODES: { key: VisualMode; label: string }[] = [
   { key: 'formula', label: 'Formula' },
   { key: 'feather', label: 'Feather' },
   { key: 'pulse', label: 'Pulse' },
+  { key: 'grid', label: 'Grid' },
+  { key: 'orbit', label: 'Orbit' },
+  { key: 'wing', label: 'Wing' },
+  { key: 'bloom', label: 'Bloom' },
+  { key: 'ribbon', label: 'Ribbon' },
+  { key: 'helix', label: 'Helix' },
+  { key: 'field', label: 'Field' },
+  { key: 'echo', label: 'Echo' },
+  { key: 'flare', label: 'Flare' },
 ]
 
 interface Props {

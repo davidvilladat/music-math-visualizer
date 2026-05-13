@@ -5,7 +5,7 @@ import formulaVert from './shaders/formula.vert?raw'
 import formulaFrag from './shaders/formula.frag?raw'
 
 export interface FormulaDevParams {
-  variant:    0 | 1 | 2
+  variant:    number
   speed:      number
   zoom:       number
   waveAmp:    number

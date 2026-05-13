@@ -16,6 +16,15 @@ const MODES: { key: VisualMode; label: string; accent: string }[] = [
   { key: 'formula', label: 'Formula', accent: '#ff1f1f' },
   { key: 'feather', label: 'Feather', accent: '#f8fafc' },
   { key: 'pulse', label: 'Pulse', accent: '#38bdf8' },
+  { key: 'grid', label: 'Grid', accent: '#f97316' },
+  { key: 'orbit', label: 'Orbit', accent: '#a3e635' },
+  { key: 'wing', label: 'Wing', accent: '#ef4444' },
+  { key: 'bloom', label: 'Bloom', accent: '#f472b6' },
+  { key: 'ribbon', label: 'Ribbon', accent: '#22d3ee' },
+  { key: 'helix', label: 'Helix', accent: '#fde047' },
+  { key: 'field', label: 'Field', accent: '#e5e7eb' },
+  { key: 'echo', label: 'Echo', accent: '#c084fc' },
+  { key: 'flare', label: 'Flare', accent: '#fb7185' },
 ]
 
 interface Props {
@@ -93,6 +102,10 @@ export function TopBar({ onChangeSource }: Props) {
       </div>
 
       <div style={actions}>
+        <span
+          aria-hidden="true"
+          style={{ ...modeSwatch, background: activeMode.accent, boxShadow: `0 0 14px ${activeMode.accent}` }}
+        />
         <select
           aria-label="Visual mode"
           value={visualMode}
@@ -233,12 +246,19 @@ const actions: CSSProperties = {
   minWidth: 0,
 }
 
+const modeSwatch: CSSProperties = {
+  width: 8,
+  height: 24,
+  borderRadius: 4,
+  flexShrink: 0,
+}
+
 const modeSelect: CSSProperties = {
   height: 32,
-  maxWidth: 132,
+  maxWidth: 144,
   border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: 7,
-  background: 'rgba(255,255,255,0.05)',
+  background: '#050505',
   color: 'rgba(255,255,255,0.78)',
   fontFamily: 'var(--font-ui)',
   fontSize: 12,

@@ -11,6 +11,15 @@ const LABEL: Record<string, string> = {
   formula: 'FORMULA',
   feather: 'FEATHER',
   pulse: 'PULSE',
+  grid: 'GRID',
+  orbit: 'ORBIT',
+  wing: 'WING',
+  bloom: 'BLOOM',
+  ribbon: 'RIBBON',
+  helix: 'HELIX',
+  field: 'FIELD',
+  echo: 'ECHO',
+  flare: 'FLARE',
 }
 
 export function ModeHUD() {
