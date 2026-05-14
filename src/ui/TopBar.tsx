@@ -125,7 +125,7 @@ export function TopBar({ onChangeSource }: Props) {
         />
         <select
           aria-label="Visual mode"
-          value={visualMode}
+          value={activeMode.key}
           onChange={(e) => setDevParams({ visualMode: e.target.value as VisualMode })}
           style={{
             ...modeSelect,

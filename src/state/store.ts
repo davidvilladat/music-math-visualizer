@@ -40,6 +40,7 @@ export type VisualMode =
   | 'chroma'
   | 'attractor'
   | 'prism'
+  | 'airframe'
 
 export type ReactivityMode = 'steady' | 'subtle' | 'balanced' | 'intense' | 'frenetic'
 

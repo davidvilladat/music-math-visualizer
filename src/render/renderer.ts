@@ -8,6 +8,7 @@ import { ElectricScene } from './electric/ElectricScene'
 import { NeonScene } from './neon/NeonScene'
 import { NovaScene } from './nova/NovaScene'
 import { FormulaScene } from './formula/FormulaScene'
+import { AircraftScene } from './aircraft/AircraftScene'
 import { AudioEngine } from '../audio/audioEngine'
 import { DemoEngine } from '../audio/DemoEngine'
 import { makeAudioFeatures, type AudioFeatures } from '../audio/audioFeatures'
@@ -24,7 +25,10 @@ function hueToRgb(h: number): [number, number, number] {
   return [1, 0, x]
 }
 
-const FORMULA_VARIANTS: Partial<Record<DevParams['visualMode'], number>> = {
+const FORMULA_MODE_KEYS = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'] as const
+type FormulaMode = typeof FORMULA_MODE_KEYS[number]
+
+const FORMULA_VARIANTS: Record<FormulaMode, number> = {
   formula: 0,
   feather: 1,
   pulse: 2,
@@ -52,6 +56,10 @@ const FORMULA_VARIANTS: Partial<Record<DevParams['visualMode'], number>> = {
   prism: 24,
 }
 
+function isFormulaMode(mode: DevParams['visualMode']): mode is FormulaMode {
+  return Object.prototype.hasOwnProperty.call(FORMULA_VARIANTS, mode)
+}
+
 const REACTIVITY_PRESETS: Record<DevParams['reactivity'], { visual: number; tempo: number }> = {
   steady: { visual: 0.28, tempo: 0.0 },
   subtle: { visual: 0.45, tempo: 0.45 },
@@ -71,6 +79,7 @@ export class Renderer {
   private neon:    NeonScene
   private nova:    NovaScene
   private formula: FormulaScene
+  private aircraft: AircraftScene
   private audioInjector: AudioInjector
   private engine: AudioEngine
   private demo: DemoEngine | null = null
@@ -89,6 +98,8 @@ export class Renderer {
   private fpsFrames = 0
   private fpsLastTime = performance.now()
   fps = 0
+  private lastMathMode: FormulaMode = 'formula'
+  private aircraftVariant = 0
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
@@ -109,6 +120,7 @@ export class Renderer {
     this.neon      = new NeonScene(this.renderer, canvas.clientWidth, canvas.clientHeight)
     this.nova      = new NovaScene(this.renderer, canvas.clientWidth, canvas.clientHeight)
     this.formula   = new FormulaScene(this.renderer, canvas.clientWidth, canvas.clientHeight)
+    this.aircraft  = new AircraftScene(this.renderer, canvas.clientWidth, canvas.clientHeight)
     this.audioInjector = new AudioInjector()
 
     this.bindMouse(canvas)
@@ -161,6 +173,7 @@ export class Renderer {
     this.neon.dispose()
     this.nova.dispose()
     this.formula.dispose()
+    this.aircraft.dispose()
     this.renderer.dispose()
     this.unbindMouse(this.renderer.domElement)
     window.removeEventListener('resize', this.onResize)
@@ -256,10 +269,18 @@ export class Renderer {
       // ── Nova: supernova explosion ──────────────────────────────────────
       this.nova.update(dt, this.features)
       this.nova.render(this.post.sourceRT)
-    } else if (mode in FORMULA_VARIANTS) {
+    } else if (mode === 'airframe') {
+      this.aircraft.update(dt, this.features, {
+        variant: this.aircraftVariant,
+        speed: devParams.formulaSpeed,
+        tempoReactivity: reactivity.tempo,
+        reactivity: reactivity.visual,
+      })
+      this.aircraft.render(this.post.sourceRT)
+    } else if (isFormulaMode(mode)) {
       // ── Formula: parametric spiral point cloud ─────────────────────────
       this.formula.update(dt, this.features, {
-        variant:    FORMULA_VARIANTS[mode] ?? 0,
+        variant:    FORMULA_VARIANTS[mode],
         speed:      devParams.formulaSpeed,
         zoom:       devParams.formulaZoom,
         waveAmp:    devParams.formulaWaveAmp,
@@ -354,6 +375,7 @@ export class Renderer {
     this.neon.resize(w, h)
     this.nova.resize(w, h)
     this.formula.resize(w, h)
+    this.aircraft.resize(w, h)
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -364,14 +386,31 @@ export class Renderer {
 
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
-      const modes = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'] as const
-      const next = modes[(modes.indexOf(devParams.visualMode as typeof modes[number]) + 1) % modes.length]
+      const current = isFormulaMode(devParams.visualMode) ? devParams.visualMode : this.lastMathMode
+      const next = FORMULA_MODE_KEYS[(FORMULA_MODE_KEYS.indexOf(current) + 1) % FORMULA_MODE_KEYS.length]
+      this.lastMathMode = next
       setDevParams({ visualMode: next })
     } else if (e.key === 's' || e.key === 'S') {
       const { devParams, setDevParams } = useStore.getState()
       const modes = ['steady', 'subtle', 'balanced', 'intense', 'frenetic'] as const
       const next = modes[(modes.indexOf(devParams.reactivity as typeof modes[number]) + 1) % modes.length]
       setDevParams({ reactivity: next })
+    } else if (e.key === 'a' || e.key === 'A') {
+      const { devParams, setDevParams } = useStore.getState()
+      if (devParams.visualMode === 'airframe') {
+        setDevParams({ visualMode: this.lastMathMode })
+      } else {
+        if (isFormulaMode(devParams.visualMode)) this.lastMathMode = devParams.visualMode
+        this.aircraftVariant = 0
+        setDevParams({ visualMode: 'airframe' })
+      }
+    } else if (e.key === 'p' || e.key === 'P') {
+      const { devParams, setDevParams } = useStore.getState()
+      this.aircraftVariant = (this.aircraftVariant + 1) % 5
+      if (devParams.visualMode !== 'airframe') {
+        if (isFormulaMode(devParams.visualMode)) this.lastMathMode = devParams.visualMode
+        setDevParams({ visualMode: 'airframe' })
+      }
     }
   }
 
