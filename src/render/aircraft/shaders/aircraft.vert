@@ -2206,9 +2206,11 @@ vec3 breguetSample(float raw, out float alpha, out float glow) {
 }
 
 // ── Ariane 5 — vertical launcher: core + 2 boosters + ogive fairing ──────────
+// Heights in metres, centred on z. Core (EPC) 30.5 m, booster (EAP) 31.6 m
+// both based at z=-22 so booster tips land just under the core top (~62%).
 vec3 ariane5Sample(float raw, out float alpha, out float glow) {
   float x = raw;
-  float BX = 4.55;  // booster centre offset (core R 2.7 + booster R 1.525 + gap)
+  float BX = 4.45;  // booster centre offset (core R 2.7 + booster R 1.525, close-coupled)
   // 1. core stage (EPC) shell
   if (x < 20000.0) {
     float h = floor(x / 110.0) / 180.0;
@@ -2217,25 +2219,25 @@ vec3 ariane5Sample(float raw, out float alpha, out float glow) {
     return zShell(0.0, 0.0, -22.0, 10.0, 2.7, 2.7, h, c);
   }
   x -= 20000.0;
-  // 2. core stringers (longitudinal)
+  // 2. core stringers (longitudinal panel lines)
   if (x < 2000.0) {
     float line = floor(x / 250.0);
     float q = mod(x, 250.0) / 249.0;
     float c = line / 8.0 * TAU;
-    alpha = 0.6; glow = 0.55;
+    alpha = 0.42; glow = 0.4;
     return zShell(0.0, 0.0, -22.0, 10.0, 2.7, 2.7, q, c);
   }
   x -= 2000.0;
-  // 3. stage separation rings (bright interstage bands)
-  if (x < 3000.0) {
+  // 3. interstage rings (thin, at real stage joints: intertank, core/ESC, ESC/VEB, VEB/fairing)
+  if (x < 2000.0) {
     float ringId = floor(x / 500.0);
     float c = mod(x, 500.0) / 500.0 * TAU;
-    float z = ringId < 0.5 ? -12.0 : ringId < 1.5 ? 0.0 : ringId < 2.5 ? 7.0 : ringId < 3.5 ? 10.0 : ringId < 4.5 ? 13.0 : 19.0;
-    float rr = z > 16.0 ? 2.6 : 2.78;
-    alpha = 0.78; glow = 0.85;
+    float z = ringId < 0.5 ? -2.0 : ringId < 1.5 ? 10.0 : ringId < 2.5 ? 16.0 : 19.0;
+    float rr = z > 15.0 ? 2.58 : 2.72;
+    alpha = 0.44; glow = 0.46;
     return vec3(rr * cos(c), rr * sin(c), z);
   }
-  x -= 3000.0;
+  x -= 2000.0;
   // 4. upper stage (ESC-A) + vehicle equipment bay
   if (x < 5000.0) {
     float h = floor(x / 90.0) / 54.0;
@@ -2249,52 +2251,52 @@ vec3 ariane5Sample(float raw, out float alpha, out float glow) {
     float h = floor(x / 90.0) / 65.0;
     float c = mod(x, 90.0) / 90.0 * TAU;
     float z = mix(19.0, 26.75, h);
-    float rr = 2.7 * (1.0 - pow(h, 1.5));
+    float rr = 2.55 * (1.0 - pow(h, 1.7));
     alpha = 0.4 + 0.2 * (1.0 - h); glow = 0.4;
     return vec3(rr * cos(c), rr * sin(c), z);
   }
   x -= 6000.0;
-  // 6. fairing split lines (jettison halves)
+  // 6. fairing split line (jettison seam)
   if (x < 1000.0) {
     float sideL = floor(x / 500.0) < 0.5 ? 1.0 : -1.0;
     float q = mod(x, 500.0) / 499.0;
     float z = mix(19.0, 26.3, q);
     float h = (z - 19.0) / 7.75;
-    float rr = 2.7 * (1.0 - pow(clamp(h, 0.0, 1.0), 1.5));
-    alpha = 0.62; glow = 0.6;
+    float rr = 2.55 * (1.0 - pow(clamp(h, 0.0, 1.0), 1.7));
+    alpha = 0.5; glow = 0.5;
     return vec3(sideL * rr, 0.0, z);
   }
   x -= 1000.0;
-  // 7. solid boosters (EAP) cylinders
+  // 7. solid boosters (EAP) bodies — based at z=-22, body to z=6
   if (x < 18000.0) {
     float side = floor(x / 9000.0) < 0.5 ? -1.0 : 1.0;
     float i = mod(x, 9000.0);
     float h = floor(i / 100.0) / 89.0;
     float c = mod(i, 100.0) / 100.0 * TAU;
     alpha = 0.3 + 0.28 * abs(sin(c * 1.5)); glow = 0.3;
-    return zShell(side * BX, 0.0, -22.0, 9.5, 1.525, 1.525, h, c);
+    return zShell(side * BX, 0.0, -22.0, 6.0, 1.525, 1.525, h, c);
   }
   x -= 18000.0;
-  // 8. booster segment joint rings (EAP is built in segments)
+  // 8. booster segment joint rings (EAP is built in 3 segments) — thin
   if (x < 2400.0) {
     float side = floor(x / 1200.0) < 0.5 ? -1.0 : 1.0;
     float i = mod(x, 1200.0);
     float ringId = floor(i / 400.0);
     float c = mod(i, 400.0) / 400.0 * TAU;
-    float z = ringId < 0.5 ? -10.0 : ringId < 1.5 ? -1.0 : 6.5;
-    alpha = 0.72; glow = 0.7;
-    return vec3(side * BX + 1.57 * cos(c), 1.57 * sin(c), z);
+    float z = ringId < 0.5 ? -13.0 : ringId < 1.5 ? -4.0 : 4.0;
+    alpha = 0.42; glow = 0.42;
+    return vec3(side * BX + 1.53 * cos(c), 1.53 * sin(c), z);
   }
   x -= 2400.0;
-  // 9. booster nose cones (ogive)
+  // 9. booster nose cones (long ogive, z 6 → 9.6 so total length ≈ core)
   if (x < 4000.0) {
     float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
     float i = mod(x, 2000.0);
     float h = floor(i / 80.0) / 24.0;
     float c = mod(i, 80.0) / 80.0 * TAU;
-    float z = mix(9.5, 13.5, h);
-    float rr = 1.525 * (1.0 - pow(h, 1.5));
-    alpha = 0.42; glow = 0.42;
+    float z = mix(6.0, 9.6, h);
+    float rr = 1.525 * (1.0 - h * h);
+    alpha = 0.42; glow = 0.44;
     return vec3(side * BX + rr * cos(c), rr * sin(c), z);
   }
   x -= 4000.0;
@@ -2303,66 +2305,66 @@ vec3 ariane5Sample(float raw, out float alpha, out float glow) {
     float strut = floor(x / 250.0);
     float side = mod(strut, 2.0) < 0.5 ? -1.0 : 1.0;
     float pair = floor(strut / 2.0);
-    float z = pair < 0.5 ? 6.0 : pair < 1.5 ? -2.0 : pair < 2.5 ? -10.0 : -18.0;
-    alpha = 0.58; glow = 0.55;
+    float z = pair < 0.5 ? 4.0 : pair < 1.5 ? -3.0 : pair < 2.5 ? -11.0 : -19.0;
+    alpha = 0.5; glow = 0.48;
     return refLine(mod(x, 250.0), 250.0, vec3(side * 2.66, 0.0, z), vec3(side * (BX - 1.5), 0.0, z), alpha, glow);
   }
   x -= 2000.0;
-  // 11. engine-bay boattails (taper from tank base down to the nozzle)
+  // 11. engine-bay boattails (taper from each tank base toward its nozzle)
   if (x < 3600.0) {
     float unit = floor(x / 1200.0);
     float cx = unit < 0.5 ? 0.0 : (unit < 1.5 ? -BX : BX);
     float topR = unit < 0.5 ? 2.7 : 1.525;
-    float botR = unit < 0.5 ? 0.7 : 0.5;
+    float botR = unit < 0.5 ? 0.75 : 0.62;
     float i = mod(x, 1200.0);
     float h = floor(i / 60.0) / 19.0;
     float c = mod(i, 60.0) / 60.0 * TAU;
-    float z = mix(-22.0, -23.4, h);
+    float z = mix(-22.0, -23.2, h);
     float rr = mix(topR, botR, h);
-    alpha = 0.5; glow = 0.52;
+    alpha = 0.5; glow = 0.5;
     return vec3(cx + rr * cos(c), rr * sin(c), z);
   }
   x -= 3600.0;
-  // 12. Vulcain 2 nozzle bell
+  // 12. Vulcain 2 nozzle bell (hangs below the boattail)
   if (x < 4500.0) {
     float h = floor(x / 90.0) / 49.0;
     float c = mod(x, 90.0) / 90.0 * TAU;
-    float z = mix(-22.0, -26.8, h);
-    float rr = mix(0.55, 1.15, pow(h, 1.6));
-    alpha = 0.5 + 0.28 * smoothstep(0.85, 1.0, h); glow = 0.6;
+    float z = mix(-23.2, -27.2, h);
+    float rr = mix(0.7, 1.2, pow(h, 1.6));
+    alpha = 0.46 + 0.3 * smoothstep(0.85, 1.0, h); glow = 0.6;
     return vec3(rr * cos(c), rr * sin(c), z);
   }
   x -= 4500.0;
-  // 12. booster nozzle bells
+  // 13. booster nozzle bells
   if (x < 3000.0) {
     float side = floor(x / 1500.0) < 0.5 ? -1.0 : 1.0;
     float i = mod(x, 1500.0);
     float h = floor(i / 60.0) / 24.0;
     float c = mod(i, 60.0) / 60.0 * TAU;
-    float z = mix(-22.0, -25.8, h);
-    float rr = mix(0.4, 0.85, pow(h, 1.6));
-    alpha = 0.46 + 0.24 * smoothstep(0.85, 1.0, h); glow = 0.55;
+    float z = mix(-23.2, -25.6, h);
+    float rr = mix(0.55, 0.85, pow(h, 1.6));
+    alpha = 0.44 + 0.26 * smoothstep(0.85, 1.0, h); glow = 0.55;
     return vec3(side * BX + rr * cos(c), rr * sin(c), z);
   }
   x -= 3000.0;
-  // 13. exhaust plumes — bright axial spine + turbulent sheath, Mach diamonds
+  // 14. exhaust plumes — bright axial spine + turbulent sheath, Mach diamonds
   if (x < 6000.0) {
     float src = floor(x / 2000.0);
     float cx = src < 0.5 ? 0.0 : (src < 1.5 ? -BX : BX);
-    float exitR = src < 0.5 ? 1.05 : 0.82;
+    float exitR = src < 0.5 ? 1.1 : 0.85;
     float j = mod(x, 2000.0);
     float q = j / 1999.0;
     float a1 = hash(j * 1.7 + src * 13.0) * TAU;
     float rnd = hash(j * 0.37 + src * 7.0);
-    float rb = pow(rnd, 0.65);                          // bias toward the bright axis
-    float env = 0.45 + 1.1 * q + 0.4 * sin(q * PI);     // neck → barrel shock → disperse
+    float rb = pow(rnd, 0.6);                           // bias toward the bright axis
+    float env = 0.5 + 1.0 * q + 0.45 * sin(q * PI);     // neck → barrel shock → disperse
     float r = exitR * env * rb;
     float zlen = 9.0 + uBass * 9.0 * uReactivity;
-    float z = (src < 0.5 ? -26.8 : -25.8) - q * zlen;
+    float z = (src < 0.5 ? -27.2 : -25.6) - q * zlen;
     float diamond = 0.55 + 0.45 * sin(q * 20.0 - uTime * 6.0);
-    float axial = 1.0 - 0.5 * rb;                       // spine brighter than sheath
-    alpha = (0.32 + uBass * 0.42 * uReactivity) * (1.0 - q) * diamond * axial;
-    glow = 0.9;
+    float axial = 1.0 - 0.55 * rb;                      // spine brighter than sheath
+    alpha = (0.4 + uBass * 0.45 * uReactivity) * (1.0 - q) * diamond * axial;
+    glow = 0.92;
     return vec3(cx + cos(a1) * r, sin(a1) * r, z);
   }
   alpha = 0.0; glow = 0.0;
