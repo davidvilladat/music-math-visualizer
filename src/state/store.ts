@@ -45,7 +45,10 @@ export type VisualMode =
 export type ReactivityMode = 'steady' | 'subtle' | 'balanced' | 'intense' | 'frenetic'
 
 // Airframe blueprint variants, indexed by uVariant in aircraft.vert.
-// Order MUST match the isXProfile() dispatch in the shader.
+// Order MUST match the isXProfile() dispatch in the shader. The 'P' key
+// cycles % length, so this list also gates which variants are reachable.
+// Ariane 5 (uVariant 10) and Soyuz T (11) are excluded here; their shader
+// samplers remain dormant and can be re-enabled by re-adding them.
 export const AIRCRAFT_VARIANTS = [
   'A380 — reference',
   'A350 XWB',
@@ -57,8 +60,6 @@ export const AIRCRAFT_VARIANTS = [
   'Mirage 4000',
   'Rafale A',
   'Bréguet XIX',
-  'Ariane 5',
-  'Soyuz T',
 ] as const
 
 export interface DevParams {
