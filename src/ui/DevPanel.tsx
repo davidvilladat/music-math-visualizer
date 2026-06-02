@@ -2,8 +2,19 @@ import { useControls, folder } from 'leva'
 import { useStore, type ReactivityMode, type VisualMode } from '../state/store'
 import { useEffect } from 'react'
 
+// Full VisualMode list so the dropdown can reach every scene, not just formula.
+const VISUAL_MODES: VisualMode[] = [
+  'fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'airframe',
+  'formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon',
+  'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint',
+  'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism',
+]
+
 export function DevPanel() {
   const setDevParams = useStore((s) => s.setDevParams)
+  // Seed the mode/reactivity controls from the live store so opening the panel
+  // doesn't reset whatever mode the V/A/P/S keys put us in.
+  const initial = useStore.getState().devParams
 
   const values = useControls({
     'Post-process': folder({
@@ -73,8 +84,8 @@ export function DevPanel() {
       formulaBandWarp:       { value: 1.0,  min: 0.0, max: 3.0, step: 0.05, label: 'Band warp' },
     }, { collapsed: true }),
     Particles: folder({
-      visualMode:          { value: 'formula', options: ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'], label: 'Visual mode (V)' },
-      reactivity:          { value: 'balanced', options: ['steady', 'subtle', 'balanced', 'intense', 'frenetic'], label: 'Reactivity (S)' },
+      visualMode:          { value: initial.visualMode, options: VISUAL_MODES, label: 'Visual mode (V)' },
+      reactivity:          { value: initial.reactivity, options: ['steady', 'subtle', 'balanced', 'intense', 'frenetic'], label: 'Reactivity (S)' },
       magneticBlend:       { value: 0.6,   min: 0.0,   max: 1.0,   step: 0.05,  label: 'Mag blend (0=vel,1=B)' },
       particleSpeed:       { value: 8.0,   min: 1.0,   max: 30.0,  step: 0.5,   label: 'Particle speed' },
       particleRespawnRate: { value: 0.002, min: 0.0,   max: 0.02,  step: 0.001, label: 'Respawn rate' },
