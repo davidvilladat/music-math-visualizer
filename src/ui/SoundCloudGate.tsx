@@ -6,6 +6,7 @@ type VisualMode = DevParams['visualMode']
 type Tab = 'soundcloud' | 'spotify' | 'demo'
 
 const MODES: { key: VisualMode; label: string }[] = [
+  { key: 'airframe', label: 'Aviation' },
   { key: 'formula', label: 'Formula' },
   { key: 'feather', label: 'Feather' },
   { key: 'pulse', label: 'Pulse' },
@@ -62,7 +63,7 @@ export function SoundCloudGate({
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [validErr, setValidErr] = useState<string | null>(null)
-  const [demoMode, setDemoMode] = useState<VisualMode>('formula')
+  const [demoMode, setDemoMode] = useState<VisualMode>('airframe')
 
   const isSpotifyAuthed = !!getAccessToken()
   const anyScError = validErr ?? (tab === 'soundcloud' ? error : null)

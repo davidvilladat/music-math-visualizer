@@ -171,7 +171,7 @@ const DEFAULT_DEV_PARAMS: DevParams = {
   dipoleStrength: 0.08,
   dipoleRadius: 0.2,
   psiDissipation: 0.998,
-  visualMode: 'formula' as const,
+  visualMode: 'airframe' as const,
   reactivity: 'balanced',
   aircraftVariant: 0,
   particleSpeed: 8.0,
