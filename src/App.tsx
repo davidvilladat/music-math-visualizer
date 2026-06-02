@@ -6,6 +6,7 @@ import { TopBar }          from './ui/TopBar'
 import { DevPanel }        from './ui/DevPanel'
 import { DebugOverlay }    from './ui/DebugOverlay'
 import { ModeHUD }         from './ui/ModeHUD'
+import { AircraftHUD }     from './ui/AircraftHUD'
 import { DemoBanner }      from './ui/DemoBanner'
 import { destroyScPlayer, initScPlayer } from './soundcloud/SoundCloudPlayer'
 import { loadSpotifySDK, initPlayer, disconnectPlayer } from './spotify/player'
@@ -208,6 +209,7 @@ export function App() {
           {debugVisible && <DevPanel />}
           <DebugOverlay renderer={renderer} />
           <ModeHUD />
+          <AircraftHUD />
           {isDemo && <DemoBanner />}
         </>
       )}

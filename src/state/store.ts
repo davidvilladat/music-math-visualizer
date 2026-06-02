@@ -44,6 +44,23 @@ export type VisualMode =
 
 export type ReactivityMode = 'steady' | 'subtle' | 'balanced' | 'intense' | 'frenetic'
 
+// Airframe blueprint variants, indexed by uVariant in aircraft.vert.
+// Order MUST match the isXProfile() dispatch in the shader.
+export const AIRCRAFT_VARIANTS = [
+  'A380 — reference',
+  'A350 XWB',
+  'A380 — aerodynamics',
+  'A380 — structural',
+  'A380 — wing box',
+  'Concorde',
+  'Boeing 747',
+  'Mirage 4000',
+  'Rafale A',
+  'Bréguet XIX',
+  'Ariane 5',
+  'Soyuz T',
+] as const
+
 export interface DevParams {
   tauSubBass: number
   tauBass: number
@@ -78,6 +95,7 @@ export interface DevParams {
   // particles
   visualMode: VisualMode
   reactivity: ReactivityMode
+  aircraftVariant: number
   particleSpeed: number
   particleRespawnRate: number
   particleTrailDecay: number
@@ -155,6 +173,7 @@ const DEFAULT_DEV_PARAMS: DevParams = {
   psiDissipation: 0.998,
   visualMode: 'formula' as const,
   reactivity: 'balanced',
+  aircraftVariant: 0,
   particleSpeed: 8.0,
   particleRespawnRate: 0.002,
   particleTrailDecay: 0.94,

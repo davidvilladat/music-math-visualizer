@@ -12,7 +12,7 @@ import { AircraftScene } from './aircraft/AircraftScene'
 import { AudioEngine } from '../audio/audioEngine'
 import { DemoEngine } from '../audio/DemoEngine'
 import { makeAudioFeatures, type AudioFeatures } from '../audio/audioFeatures'
-import { useStore, type DevParams } from '../state/store'
+import { useStore, AIRCRAFT_VARIANTS, type DevParams } from '../state/store'
 
 function hueToRgb(h: number): [number, number, number] {
   const h6 = (h % 1) * 6
@@ -99,7 +99,6 @@ export class Renderer {
   private fpsLastTime = performance.now()
   fps = 0
   private lastMathMode: FormulaMode = 'formula'
-  private aircraftVariant = 0
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
@@ -271,7 +270,7 @@ export class Renderer {
       this.nova.render(this.post.sourceRT)
     } else if (mode === 'airframe') {
       this.aircraft.update(dt, this.features, {
-        variant: this.aircraftVariant,
+        variant: devParams.aircraftVariant,
         speed: devParams.formulaSpeed,
         tempoReactivity: reactivity.tempo,
         reactivity: reactivity.visual,
@@ -401,16 +400,18 @@ export class Renderer {
         setDevParams({ visualMode: this.lastMathMode })
       } else {
         if (isFormulaMode(devParams.visualMode)) this.lastMathMode = devParams.visualMode
-        this.aircraftVariant = 0
-        setDevParams({ visualMode: 'airframe' })
+        setDevParams({ visualMode: 'airframe', aircraftVariant: 0 })
       }
     } else if (e.key === 'p' || e.key === 'P') {
       const { devParams, setDevParams } = useStore.getState()
-      this.aircraftVariant = (this.aircraftVariant + 1) % 12
+      const patch: Partial<DevParams> = {
+        aircraftVariant: (devParams.aircraftVariant + 1) % AIRCRAFT_VARIANTS.length,
+      }
       if (devParams.visualMode !== 'airframe') {
         if (isFormulaMode(devParams.visualMode)) this.lastMathMode = devParams.visualMode
-        setDevParams({ visualMode: 'airframe' })
+        patch.visualMode = 'airframe'
       }
+      setDevParams(patch)
     }
   }
 
