@@ -67,7 +67,35 @@ bool isStructuralProfile() {
 }
 
 bool isWingBoxProfile() {
-  return uVariant > 3.5;
+  return uVariant > 3.5 && uVariant < 4.5;
+}
+
+bool isConcordeProfile() {
+  return uVariant > 4.5 && uVariant < 5.5;
+}
+
+bool isB747Profile() {
+  return uVariant > 5.5 && uVariant < 6.5;
+}
+
+bool isMirageProfile() {
+  return uVariant > 6.5 && uVariant < 7.5;
+}
+
+bool isRafaleProfile() {
+  return uVariant > 7.5 && uVariant < 8.5;
+}
+
+bool isBreguetProfile() {
+  return uVariant > 8.5 && uVariant < 9.5;
+}
+
+bool isAriane5Profile() {
+  return uVariant > 9.5 && uVariant < 10.5;
+}
+
+bool isSoyuzProfile() {
+  return uVariant > 10.5 && uVariant < 11.5;
 }
 
 bool isA350Profile() {
@@ -1325,12 +1353,1036 @@ vec3 a380StructuralSample(float raw, out float alpha, out float glow) {
   return vec3(0.0);
 }
 
+// ── Concorde (Aérospatiale/BAC) — tailless ogee delta ───────────────────────
+// Model space is real metres: length 62.10 m (half 31.05), span 25.60 m
+// (half 12.80), height 12.19 m, fuselage Ø ~2.88 m (radius 1.44).
+
+// slender fuselage taper: long pointed nose, tapered tail
+float concordeF(float x) {
+  float hl = 31.05;
+  float f = smoothstep(-hl, -hl + 9.0, x) * (1.0 - smoothstep(hl - 15.0, hl, x));
+  return pow(max(0.0, f), 0.5);
+}
+
+// ogee delta wing: curved (ogival) leading edge, near-straight trailing edge
+vec3 concordeWing(float side, float u, float v, out float alpha, out float glow) {
+  float xLE = 14.0 - 21.0 * pow(u, 0.72) + 0.6 * sin(u * PI); // ogive curve
+  float xTE = mix(-13.7, -13.0, u);                           // near-straight TE
+  float x = mix(xLE, xTE, v) + 0.10 * sin(9.0 * u + uTime);
+  float y = side * mix(1.44, 12.8, u);
+  float droop = pow(u, 1.6);
+  float z = 3.0 + 0.35 * sin(u * PI) - 0.9 * droop - 0.18 * v; // conical camber + tip droop
+  alpha = 0.28 + 0.36 * (1.0 - u);
+  glow = 0.30 + 0.22 * u;
+  return vec3(x, y, z);
+}
+
+// single swept vertical fin (no horizontal stabiliser on Concorde)
+vec3 concordeFin(float u, float v, out float alpha, out float glow) {
+  float xLE = mix(-19.0, -27.5, u);
+  float xTE = mix(-27.0, -29.5, u);
+  float x = mix(xLE, xTE, v);
+  float z = 4.0 + u * 8.2;                  // root (fuselage top) → tip 12.2 m
+  float y = 0.12 * sin(u * 11.0 + uTime);   // thin, on centreline
+  alpha = 0.5 + 0.2 * (1.0 - u);
+  glow = 0.55;
+  return vec3(x, y, z);
+}
+
+// walk a rectangle perimeter in the Y-Z plane (used for nacelle cross-sections)
+vec3 rectPerimeter(float cy, float cz, float hw, float hh, float t) {
+  float p = fract(t) * 4.0;
+  float e = floor(p);
+  float q = fract(p);
+  if (e < 1.0) return vec3(0.0, cy - hw + 2.0 * hw * q, cz - hh);
+  if (e < 2.0) return vec3(0.0, cy + hw, cz - hh + 2.0 * hh * q);
+  if (e < 3.0) return vec3(0.0, cy + hw - 2.0 * hw * q, cz + hh);
+  return vec3(0.0, cy - hw, cz + hh - 2.0 * hh * q);
+}
+
+// rectangular underwing nacelle: box tube + spinning compressor + exhaust + pylon
+vec3 concordeEngine(float raw, float cx, float cy, float cz, out float alpha, out float glow) {
+  float hw = 0.95;
+  float hh = 0.78;
+  float len = 10.5;
+  if (raw < 1400.0) {
+    float station = floor(raw / 70.0);
+    float t = mod(raw, 70.0) / 70.0;
+    float x = cx + (station / 19.0 - 0.5) * len;
+    vec3 r = rectPerimeter(cy, cz, hw, hh, t);
+    alpha = 0.5;
+    glow = 0.5;
+    return vec3(x, r.y, r.z);
+  }
+  if (raw < 2400.0) {
+    float j = raw - 1400.0;
+    float spoke = floor(j / 40.0);
+    float q = mod(j, 40.0) / 39.0;
+    float c = spoke / 25.0 * TAU + uTime * (3.0 + uBass * uReactivity * 3.0);
+    float r = q * 0.7;
+    alpha = 0.42 + uBass * 0.2 * uReactivity;
+    glow = 0.92;
+    return vec3(cx + len * 0.5 + 0.2, cy + cos(c) * r, cz + sin(c) * r);
+  }
+  if (raw < 3000.0) {
+    float q = (raw - 2400.0) / 599.0;
+    float c = q * TAU * 6.0 + uTime * 2.0;
+    float r = 0.2 + q * 1.1;
+    alpha = 0.34 * (1.0 - q);
+    glow = 0.7;
+    return vec3(cx - len * 0.5 - q * 8.0, cy + cos(c) * r * 0.6, cz + sin(c) * r * 0.6);
+  }
+  float q = (raw - 3000.0) / 249.0;
+  alpha = 0.4;
+  glow = 0.4;
+  return vec3(cx, cy, cz + q * 1.4);
+}
+
+vec3 concordeSample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  // 1. fuselage shell (helical point cloud over the slender body)
+  if (x < 19000.0) {
+    float lx = -31.05 + 62.10 * (mod(x, 760.0) / 759.0);
+    float f = concordeF(lx);
+    float c = x * 2.399 + uTime * 0.34;
+    float r = 0.42 + 0.58 * abs(sin(x * 0.015));
+    alpha = (34.0 + 44.0 * abs(sin(c))) / 170.0;
+    glow = 0.18 + 0.40 * abs(sin(c));
+    return vec3(lx, 1.44 * f * sin(c) * r, 3.0 + 1.44 * f * cos(c) * r + 0.12 * sin(lx * 0.6 + uTime));
+  }
+  x -= 19000.0;
+  // 2. outline strips: upper, lower, side, keel
+  if (x < 1200.0) {
+    float strip = floor(x / 300.0);
+    float lx = -31.05 + 62.10 * (mod(x, 300.0) / 299.0);
+    float f = concordeF(lx);
+    alpha = strip < 0.5 ? 0.74 : strip < 1.5 ? 0.58 : 0.42;
+    glow = strip < 2.0 ? 0.7 : 0.34;
+    if (strip < 0.5) return vec3(lx, 1.44 * f, 3.0);
+    if (strip < 1.5) return vec3(lx, -1.44 * f, 3.0);
+    if (strip < 2.5) return vec3(lx, 0.0, 3.0 + 1.44 * f);
+    return vec3(lx, 0.0, 3.0 - 1.44 * f * 0.8);
+  }
+  x -= 1200.0;
+  // 3. droop nose
+  if (x < 1800.0) {
+    float u = x / 1799.0;
+    float c = u * TAU * 3.2 + uTime / 2.0;
+    float lx = 24.0 + 7.05 * u;
+    float f = concordeF(lx);
+    float droop = pow(u, 2.0) * 1.7;
+    alpha = 0.56;
+    glow = 0.5;
+    return vec3(lx, 1.44 * f * sin(c) * 0.75, 3.0 - droop + 1.44 * f * cos(c) * 0.75);
+  }
+  x -= 1800.0;
+  // 4. cockpit windscreen
+  if (x < 220.0) {
+    float side = floor(x / 110.0) < 0.5 ? -1.0 : 1.0;
+    float q = mod(x, 110.0) / 109.0;
+    alpha = 0.95;
+    glow = 0.95;
+    return vec3(22.5 + 3.4 * q, side * (0.55 + 0.7 * sin(q * PI)), 3.7 + 0.5 * cos(q * PI));
+  }
+  x -= 220.0;
+  // 5. cabin windows (small, single row)
+  if (x < 2600.0) {
+    float group = floor(x / 26.0);
+    float j = mod(x, 26.0);
+    float n = floor(group / 2.0);
+    float side = mod(group, 2.0) < 0.5 ? -1.0 : 1.0;
+    float lx = 19.0 - n * 0.78;
+    float f = concordeF(lx);
+    float visible = f > 0.5 ? 1.0 : 0.0;
+    vec3 p = refRing(lx, side * 1.44 * f * 1.02, 2.9, 0.10, 0.05, j, 26.0, alpha, glow);
+    alpha *= visible * (side > 0.0 ? 0.85 : 0.42);
+    return p;
+  }
+  x -= 2600.0;
+  // 6. doors
+  if (x < 800.0) {
+    float group = floor(x / 200.0);
+    float local = mod(x, 200.0);
+    float side = floor(group / 2.0) < 0.5 ? -1.0 : 1.0;
+    float idx = mod(group, 2.0);
+    float lx = idx < 0.5 ? 12.0 : -4.0;
+    float f = concordeF(lx);
+    return refDoor(local, lx, side * 1.44 * f * 1.05, 3.0, 0.5, 1.0, alpha, glow);
+  }
+  x -= 800.0;
+  // 7. wing surface (ogee delta, both sides)
+  if (x < 33000.0) {
+    float side = floor(x / 16500.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 16500.0);
+    float u = mod(i, 275.0) / 274.0;
+    float v = mod(floor(i / 275.0), 60.0) / 59.0;
+    return concordeWing(side, u, v, alpha, glow);
+  }
+  x -= 33000.0;
+  // 8. wing detail: LE/TE outline, ribs, elevon hinge line
+  if (x < 6000.0) {
+    float side = floor(x / 3000.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 3000.0);
+    if (local < 800.0) {
+      float edge = floor(local / 400.0);
+      return concordeWing(side, mod(local, 400.0) / 399.0, edge, alpha, glow);
+    }
+    if (local < 2000.0) {
+      float rib = floor((local - 800.0) / 200.0);
+      float u = 0.08 + rib / 6.0 * 0.9;
+      return concordeWing(side, u, mod(local - 800.0, 200.0) / 199.0, alpha, glow);
+    }
+    float u = mod(local - 2000.0, 1000.0) / 999.0;
+    vec3 p = concordeWing(side, u, 0.82, alpha, glow);
+    alpha = 0.6;
+    glow = 0.62;
+    return p;
+  }
+  x -= 6000.0;
+  // 9. vertical fin surface
+  if (x < 4800.0) {
+    float u = mod(x, 120.0) / 119.0;
+    float v = mod(floor(x / 120.0), 40.0) / 39.0;
+    return concordeFin(u, v, alpha, glow);
+  }
+  x -= 4800.0;
+  // 10. fin detail outline
+  if (x < 1000.0) {
+    float edge = floor(x / 500.0);
+    return concordeFin(mod(x, 500.0) / 499.0, edge, alpha, glow);
+  }
+  x -= 1000.0;
+  // 11. engines: 4 pods in 2 underwing twin-nacelles
+  if (x < 13000.0) {
+    float pod = floor(x / 3250.0);
+    float side = pod < 2.0 ? -1.0 : 1.0;
+    float inner = mod(pod, 2.0);
+    float cy = side * (inner < 0.5 ? 3.0 : 5.2);
+    return concordeEngine(mod(x, 3250.0), -9.5, cy, 1.4, alpha, glow);
+  }
+  x -= 13000.0;
+  // 12. landing gear (nose + 2 main, strut + twin wheels)
+  if (x < 1400.0) {
+    float gear = floor(x / 120.0);
+    float local = mod(x, 120.0);
+    float gx = 18.0;
+    float gy = 0.0;
+    if (gear > 0.5) {
+      float side = floor((gear - 1.0) / 5.0) < 0.5 ? -1.0 : 1.0;
+      gx = -7.0;
+      gy = side * 2.4;
+    }
+    if (local < 36.0) return refLine(local, 36.0, vec3(gx, gy, 2.0), vec3(gx, gy, 0.3), alpha, glow);
+    if (local < 78.0) return refWheel(local - 36.0, gx - 0.3, gy, 0.3, 0.42, alpha, glow);
+    return refWheel(local - 78.0, gx + 0.3, gy, 0.3, 0.42, alpha, glow);
+  }
+  x -= 1400.0;
+  // 13. datum lines (centreline, span datum, height datum)
+  if (x < 600.0) {
+    float seg = floor(x / 200.0);
+    float q = mod(x, 200.0);
+    if (seg < 0.5) return refLine(q, 200.0, vec3(-31.05, 0.0, 3.0), vec3(31.05, 0.0, 3.0), alpha, glow);
+    if (seg < 1.5) return refLine(q, 200.0, vec3(-6.0, -12.8, 2.6), vec3(-6.0, 12.8, 2.6), alpha, glow);
+    return refLine(q, 200.0, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 12.2), alpha, glow);
+  }
+  alpha = 0.0;
+  glow = 0.0;
+  return vec3(0.0);
+}
+
+// ── Shared generators for the extended blueprint set ─────────────────────────
+
+// generic lofted lifting surface. le=(xLEroot,xLEtip) te=(xTEroot,xTEtip)
+// yr_t=(yRoot,yTip). sweepCurve>0.5 gives an ogival (curved) leading edge.
+vec3 panelWing(float side, float u, float v, vec2 le, vec2 te, vec2 yr_t, float zBase, float dihedral, float sweepCurve) {
+  float us = sweepCurve > 0.5 ? pow(u, 0.74) : u;
+  float xLE = mix(le.x, le.y, us);
+  float xTE = mix(te.x, te.y, u);
+  float x = mix(xLE, xTE, v) + 0.06 * sin(9.0 * u + uTime);
+  float y = side * mix(yr_t.x, yr_t.y, u);
+  float z = zBase + dihedral * u + (dihedral > 0.0 ? 0.3 * sin(u * PI) : 0.0);
+  return vec3(x, y, z);
+}
+
+// vertical fin panel (thin, on centreline). le/te are x at root/tip, zr_t z root/tip.
+vec3 finPanel(float u, float v, vec2 le, vec2 te, vec2 zr_t) {
+  float x = mix(mix(le.x, le.y, u), mix(te.x, te.y, u), v);
+  float z = mix(zr_t.x, zr_t.y, u);
+  float y = 0.1 * sin(u * 11.0 + uTime);
+  return vec3(x, y, z);
+}
+
+// podded turbofan: intake ring, cowl shell, spinning fan, exhaust plume
+vec3 podEngine(float raw, float cx, float cy, float cz, float rad, out float a, out float g) {
+  if (raw < 200.0) {
+    float c = raw / 199.0 * TAU;
+    a = 0.7; g = 0.75;
+    return vec3(cx + 1.6 * rad, cy + rad * cos(c), cz + rad * sin(c));
+  }
+  if (raw < 1000.0) {
+    float h = floor((raw - 200.0) / 80.0) / 9.0;
+    float c = mod(raw - 200.0, 80.0) / 80.0 * TAU;
+    float rr = rad * (1.0 - 0.15 * h);
+    a = 0.45; g = 0.45;
+    return vec3(cx + 1.6 * rad - h * 3.2 * rad, cy + rr * cos(c), cz + rr * sin(c));
+  }
+  if (raw < 2200.0) {
+    float j = raw - 1000.0;
+    float blade = floor(j / 50.0);
+    float q = mod(j, 50.0) / 49.0;
+    float c = blade / 24.0 * TAU + uTime * (3.0 + uBass * uReactivity * 3.0);
+    float r = q * rad * 0.85;
+    a = 0.42 + uBass * 0.2 * uReactivity; g = 0.92;
+    return vec3(cx + 1.6 * rad, cy + cos(c) * r, cz + sin(c) * r);
+  }
+  float q = (raw - 2200.0) / 799.0;
+  float c = q * TAU * 6.0 + uTime * 2.0;
+  float r = 0.2 + q * rad;
+  a = 0.34 * (1.0 - q); g = 0.7;
+  return vec3(cx - 2.0 * rad - q * 4.0, cy + cos(c) * r * 0.6, cz + sin(c) * r * 0.6);
+}
+
+// helical shell around the vertical Z axis (rocket stages); cone when rBot!=rTop
+vec3 zShell(float cx, float cy, float zBot, float zTop, float rBot, float rTop, float h, float c) {
+  float z = mix(zBot, zTop, h);
+  float r = mix(rBot, rTop, h);
+  return vec3(cx + r * cos(c), cy + r * sin(c), z);
+}
+
+// helical shell around the X axis (horizontal body); centreline at (0, cy, cz)
+vec3 xShell(float cy, float cz, float xBack, float xFront, float rBack, float rFront, float h, float c) {
+  float x = mix(xBack, xFront, h);
+  float r = mix(rBack, rFront, h);
+  return vec3(x, cy + r * sin(c), cz + r * cos(c));
+}
+
+// sphere centred at (xc, 0, cz)
+vec3 sphereShell(float xc, float cz, float R, float h, float c) {
+  float lx = xc - R + 2.0 * R * h;
+  float rr = sqrt(max(0.0, R * R - (lx - xc) * (lx - xc)));
+  return vec3(lx, rr * sin(c), cz + rr * cos(c));
+}
+
+// straight (unswept) biplane wing
+vec3 biplaneWing(float side, float u, float v, float span, float chord, float xoff, float zlev) {
+  float x = xoff + chord * (0.5 - v);
+  float y = side * mix(0.4, span, u);
+  float z = zlev + 0.12 * sin(u * PI);
+  return vec3(x, y, z);
+}
+
+// ── Boeing 747-128 — wide-body, forward upper-deck hump, 4 podded engines ────
+float b747F(float x) {
+  float hl = 35.33;
+  float f = smoothstep(-hl, -hl + 11.0, x) * (1.0 - smoothstep(hl - 9.0, hl, x));
+  return pow(max(0.0, f), 0.42);
+}
+
+vec3 b747Sample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  if (x < 18000.0) {
+    float lx = -35.33 + 70.66 * (mod(x, 820.0) / 819.0);
+    float f = b747F(lx);
+    float c = x * 2.399 + uTime * 0.34;
+    float r = 0.42 + 0.58 * abs(sin(x * 0.013));
+    float hump = smoothstep(7.0, 13.0, lx) * (1.0 - smoothstep(25.0, 31.0, lx));
+    float rr = 3.25 * f;
+    alpha = (34.0 + 44.0 * abs(sin(c))) / 170.0;
+    glow = 0.18 + 0.40 * abs(sin(c));
+    return vec3(lx, rr * sin(c) * r, 5.8 + rr * cos(c) * r + hump * 1.7 * max(0.0, cos(c)));
+  }
+  x -= 18000.0;
+  if (x < 1200.0) {
+    float strip = floor(x / 300.0);
+    float lx = -35.33 + 70.66 * (mod(x, 300.0) / 299.0);
+    float f = b747F(lx);
+    float hump = smoothstep(7.0, 13.0, lx) * (1.0 - smoothstep(25.0, 31.0, lx));
+    alpha = strip < 0.5 ? 0.74 : strip < 1.5 ? 0.58 : 0.42;
+    glow = strip < 2.0 ? 0.7 : 0.34;
+    if (strip < 0.5) return vec3(lx, 3.25 * f, 5.8);
+    if (strip < 1.5) return vec3(lx, -3.25 * f, 5.8);
+    if (strip < 2.5) return vec3(lx, 0.0, 5.8 + 3.25 * f + hump * 1.7);
+    return vec3(lx, 0.0, 5.8 - 3.25 * f * 0.8);
+  }
+  x -= 1200.0;
+  if (x < 1400.0) {
+    float u = x / 1399.0;
+    float c = u * TAU * 3.4 + uTime / 2.0;
+    float lx = 30.0 + 5.33 * pow(u, 0.7);
+    float f = b747F(lx);
+    alpha = 0.56; glow = 0.5;
+    return vec3(lx, 3.25 * f * sin(c) * 0.85, 5.8 + 3.25 * f * cos(c) * 0.8);
+  }
+  x -= 1400.0;
+  if (x < 220.0) {
+    float side = floor(x / 110.0) < 0.5 ? -1.0 : 1.0;
+    float q = mod(x, 110.0) / 109.0;
+    alpha = 0.95; glow = 0.95;
+    return vec3(27.5 + 4.0 * q, side * (1.4 + 1.8 * sin(q * PI)), 7.6 + 0.8 * cos(q * PI));
+  }
+  x -= 220.0;
+  if (x < 4000.0) {
+    float group = floor(x / 40.0);
+    float j = mod(x, 40.0);
+    float n = floor(group / 2.0);
+    float side = mod(group, 2.0) < 0.5 ? -1.0 : 1.0;
+    float lx = 28.0 - n * 1.0;
+    float f = b747F(lx);
+    float vis = f > 0.55 ? 1.0 : 0.0;
+    vec3 p = refRing(lx, side * 3.25 * f * 1.01, 6.0, 0.12, 0.06, j, 40.0, alpha, glow);
+    alpha *= vis * (side > 0.0 ? 0.85 : 0.42);
+    return p;
+  }
+  x -= 4000.0;
+  if (x < 800.0) {
+    float group = floor(x / 200.0);
+    float local = mod(x, 200.0);
+    float side = floor(group / 2.0) < 0.5 ? -1.0 : 1.0;
+    float lx = mod(group, 2.0) < 0.5 ? 16.0 : -10.0;
+    float f = b747F(lx);
+    return refDoor(local, lx, side * 3.25 * f * 1.04, 5.8, 0.9, 1.8, alpha, glow);
+  }
+  x -= 800.0;
+  if (x < 26000.0) {
+    float side = floor(x / 13000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 13000.0);
+    float u = mod(i, 260.0) / 259.0;
+    float v = mod(floor(i / 260.0), 50.0) / 49.0;
+    alpha = 0.30 + 0.34 * (1.0 - u); glow = 0.30 + 0.22 * u;
+    return panelWing(side, u, v, vec2(4.0, -22.0), vec2(-12.0, -27.0), vec2(3.25, 29.82), -1.5, 3.0, 0.0);
+  }
+  x -= 26000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 2000.0);
+    alpha = 0.62; glow = 0.6;
+    if (local < 800.0) {
+      float edge = floor(local / 400.0);
+      return panelWing(side, mod(local, 400.0) / 399.0, edge, vec2(4.0, -22.0), vec2(-12.0, -27.0), vec2(3.25, 29.82), -1.5, 3.0, 0.0);
+    }
+    float rib = floor((local - 800.0) / 200.0);
+    float u = 0.1 + rib / 6.0 * 0.85;
+    return panelWing(side, u, mod(local - 800.0, 200.0) / 199.0, vec2(4.0, -22.0), vec2(-12.0, -27.0), vec2(3.25, 29.82), -1.5, 3.0, 0.0);
+  }
+  x -= 4000.0;
+  if (x < 12000.0) {
+    float pod = floor(x / 3000.0);
+    float side = pod < 2.0 ? -1.0 : 1.0;
+    float outer = mod(pod, 2.0);
+    float cy = side * (outer < 0.5 ? 10.5 : 20.5);
+    float cx = outer < 0.5 ? -2.0 : -10.0;
+    float cz = -4.5 - outer * 0.6;
+    return podEngine(mod(x, 3000.0), cx, cy, cz, 2.4, alpha, glow);
+  }
+  x -= 12000.0;
+  if (x < 7000.0) {
+    float side = floor(x / 3500.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 3500.0);
+    alpha = 0.46; glow = 0.5;
+    if (local < 3300.0) {
+      float u = mod(local, 140.0) / 139.0;
+      float v = mod(floor(local / 140.0), 24.0) / 23.0;
+      return panelWing(side, u, v, vec2(-26.0, -33.0), vec2(-33.0, -35.5), vec2(2.0, 11.5), 7.0, 1.0, 0.0);
+    }
+    float edge = floor((local - 3300.0) / 100.0);
+    return panelWing(side, mod(local - 3300.0, 100.0) / 99.0, edge, vec2(-26.0, -33.0), vec2(-33.0, -35.5), vec2(2.0, 11.5), 7.0, 1.0, 0.0);
+  }
+  x -= 7000.0;
+  if (x < 6000.0) {
+    if (x < 5000.0) {
+      float u = mod(x, 130.0) / 129.0;
+      float v = mod(floor(x / 130.0), 38.0) / 37.0;
+      alpha = 0.5; glow = 0.58;
+      return finPanel(u, v, vec2(-25.0, -33.5), vec2(-33.0, -35.5), vec2(8.5, 19.3));
+    }
+    float edge = floor((x - 5000.0) / 500.0);
+    alpha = 0.6; glow = 0.6;
+    return finPanel(mod(x - 5000.0, 500.0) / 499.0, edge, vec2(-25.0, -33.5), vec2(-33.0, -35.5), vec2(8.5, 19.3));
+  }
+  x -= 6000.0;
+  if (x < 1400.0) {
+    float gear = floor(x / 140.0);
+    float local = mod(x, 140.0);
+    float gx = gear < 0.5 ? 22.0 : -3.0 - mod(gear, 3.0) * 2.0;
+    float gy = gear < 0.5 ? 0.0 : (floor((gear - 1.0) / 3.0) < 0.5 ? -3.5 : 3.5);
+    if (local < 40.0) return refLine(local, 40.0, vec3(gx, gy, 2.4), vec3(gx, gy, 0.3), alpha, glow);
+    if (local < 90.0) return refWheel(local - 40.0, gx - 0.4, gy, 0.3, 0.55, alpha, glow);
+    return refWheel(local - 90.0, gx + 0.4, gy, 0.3, 0.55, alpha, glow);
+  }
+  x -= 1400.0;
+  if (x < 600.0) {
+    float seg = floor(x / 200.0);
+    float q = mod(x, 200.0);
+    if (seg < 0.5) return refLine(q, 200.0, vec3(-35.33, 0.0, 5.8), vec3(35.33, 0.0, 5.8), alpha, glow);
+    if (seg < 1.5) return refLine(q, 200.0, vec3(-6.0, -29.82, 0.0), vec3(-6.0, 29.82, 0.0), alpha, glow);
+    return refLine(q, 200.0, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 19.3), alpha, glow);
+  }
+  alpha = 0.0; glow = 0.0;
+  return vec3(0.0);
+}
+
+// ── Dassault Mirage 4000 — large delta + canards, single fin, twin engines ───
+float mirageF(float x) {
+  float hl = 9.35;
+  float f = smoothstep(-hl, -hl + 5.0, x) * (1.0 - smoothstep(hl - 4.5, hl, x));
+  return pow(max(0.0, f), 0.5);
+}
+
+vec3 mirageSample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  if (x < 13000.0) {
+    float lx = -9.35 + 18.70 * (mod(x, 520.0) / 519.0);
+    float f = mirageF(lx);
+    float c = x * 2.399 + uTime * 0.34;
+    float r = 0.42 + 0.58 * abs(sin(x * 0.02));
+    alpha = (36.0 + 44.0 * abs(sin(c))) / 170.0;
+    glow = 0.2 + 0.4 * abs(sin(c));
+    return vec3(lx, 0.95 * f * sin(c) * r, 2.4 + 0.95 * f * cos(c) * r);
+  }
+  x -= 13000.0;
+  if (x < 900.0) {
+    float strip = floor(x / 300.0);
+    float lx = -9.35 + 18.70 * (mod(x, 300.0) / 299.0);
+    float f = mirageF(lx);
+    alpha = strip < 0.5 ? 0.74 : strip < 1.5 ? 0.58 : 0.5; glow = 0.6;
+    if (strip < 0.5) return vec3(lx, 0.95 * f, 2.4);
+    if (strip < 1.5) return vec3(lx, -0.95 * f, 2.4);
+    return vec3(lx, 0.0, 2.4 + 0.95 * f);
+  }
+  x -= 900.0;
+  if (x < 1200.0) {
+    float u = x / 1199.0;
+    float c = u * TAU * 3.0 + uTime / 2.0;
+    float lx = 6.5 + 2.85 * pow(u, 0.6);
+    float f = mirageF(lx);
+    alpha = 0.56; glow = 0.5;
+    if (u > 0.9) return vec3(lx + 1.2, 0.0, 2.4);
+    return vec3(lx, 0.95 * f * sin(c) * 0.8, 2.4 + 0.95 * f * cos(c) * 0.8);
+  }
+  x -= 1200.0;
+  if (x < 400.0) {
+    float side = floor(x / 200.0) < 0.5 ? -1.0 : 1.0;
+    float q = mod(x, 200.0) / 199.0;
+    alpha = 0.92; glow = 0.9;
+    return vec3(3.5 + 2.4 * q, side * (0.4 + 0.5 * sin(q * PI)), 3.0 + 0.55 * sin(q * PI));
+  }
+  x -= 400.0;
+  if (x < 30000.0) {
+    float side = floor(x / 15000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 15000.0);
+    float u = mod(i, 250.0) / 249.0;
+    float v = mod(floor(i / 250.0), 60.0) / 59.0;
+    alpha = 0.30 + 0.34 * (1.0 - u); glow = 0.32 + 0.22 * u;
+    return panelWing(side, u, v, vec2(3.8, -4.2), vec2(-6.8, -7.2), vec2(0.95, 6.0), -0.1, 0.3, 1.0);
+  }
+  x -= 30000.0;
+  if (x < 5000.0) {
+    float side = floor(x / 2500.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 2500.0);
+    alpha = 0.6; glow = 0.6;
+    if (local < 800.0) {
+      float edge = floor(local / 400.0);
+      return panelWing(side, mod(local, 400.0) / 399.0, edge, vec2(3.8, -4.2), vec2(-6.8, -7.2), vec2(0.95, 6.0), -0.1, 0.3, 1.0);
+    }
+    float rib = floor((local - 800.0) / 200.0);
+    float u = 0.1 + rib / 8.0 * 0.85;
+    return panelWing(side, u, mod(local - 800.0, 200.0) / 199.0, vec2(3.8, -4.2), vec2(-6.8, -7.2), vec2(0.95, 6.0), -0.1, 0.3, 1.0);
+  }
+  x -= 5000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 2000.0);
+    float u = mod(i, 100.0) / 99.0;
+    float v = mod(floor(i / 100.0), 20.0) / 19.0;
+    alpha = 0.5; glow = 0.55;
+    return panelWing(side, u, v, vec2(5.4, 3.6), vec2(4.0, 3.0), vec2(1.0, 2.7), 0.7, 0.2, 1.0);
+  }
+  x -= 4000.0;
+  if (x < 5000.0) {
+    if (x < 4200.0) {
+      float u = mod(x, 120.0) / 119.0;
+      float v = mod(floor(x / 120.0), 35.0) / 34.0;
+      alpha = 0.5; glow = 0.58;
+      return finPanel(u, v, vec2(-5.0, -8.2), vec2(-8.0, -9.0), vec2(2.6, 5.8));
+    }
+    float edge = floor((x - 4200.0) / 400.0);
+    alpha = 0.6; glow = 0.6;
+    return finPanel(mod(x - 4200.0, 400.0) / 399.0, edge, vec2(-5.0, -8.2), vec2(-8.0, -9.0), vec2(2.6, 5.8));
+  }
+  x -= 5000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 2000.0);
+    float cy = side * 1.3;
+    if (local < 1400.0) {
+      float h = floor(local / 70.0) / 19.0;
+      float c = mod(local, 70.0) / 70.0 * TAU;
+      alpha = 0.5; glow = 0.55;
+      return vec3(2.6 - h * 2.5, cy + 0.7 * cos(c) * 0.7, 2.0 + 0.7 * sin(c) * 0.7);
+    }
+    float q = (local - 1400.0) / 599.0;
+    alpha = 0.7; glow = 0.7;
+    return vec3(3.0 - q * 1.2, cy, 2.0);
+  }
+  x -= 4000.0;
+  if (x < 6000.0) {
+    float side = floor(x / 3000.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 3000.0);
+    float cy = side * 0.6;
+    if (local < 1400.0) {
+      float h = floor(local / 70.0) / 19.0;
+      float c = mod(local, 70.0) / 70.0 * TAU;
+      alpha = 0.5; glow = 0.6;
+      return vec3(-7.0 - h * 2.0, cy + 0.55 * cos(c), 2.4 + 0.55 * sin(c));
+    }
+    float j = local - 1400.0;
+    float c = j * 0.2 + uTime * (1.5 + uBass * uReactivity * 3.0);
+    float r = 0.2 + (j / 1599.0) * 0.9;
+    alpha = 0.4 + uBass * 0.2 * uReactivity; glow = 0.9;
+    return vec3(-9.0 - (j / 1599.0) * 3.0, cy + cos(c) * r * 0.6, 2.4 + sin(c) * r * 0.6);
+  }
+  x -= 6000.0;
+  if (x < 1200.0) {
+    float gear = floor(x / 120.0);
+    float local = mod(x, 120.0);
+    float gx = gear < 0.5 ? 4.5 : -1.5;
+    float gy = gear < 0.5 ? 0.0 : (floor((gear - 1.0) / 5.0) < 0.5 ? -1.6 : 1.6);
+    if (local < 36.0) return refLine(local, 36.0, vec3(gx, gy, 1.5), vec3(gx, gy, 0.2), alpha, glow);
+    return refWheel(local - 36.0, gx, gy, 0.2, 0.32, alpha, glow);
+  }
+  x -= 1200.0;
+  if (x < 600.0) {
+    float seg = floor(x / 200.0);
+    float q = mod(x, 200.0);
+    if (seg < 0.5) return refLine(q, 200.0, vec3(-9.35, 0.0, 2.4), vec3(9.35, 0.0, 2.4), alpha, glow);
+    if (seg < 1.5) return refLine(q, 200.0, vec3(-2.0, -6.0, 2.0), vec3(-2.0, 6.0, 2.0), alpha, glow);
+    return refLine(q, 200.0, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 5.8), alpha, glow);
+  }
+  alpha = 0.0; glow = 0.0;
+  return vec3(0.0);
+}
+
+// ── Dassault Rafale A — close-coupled delta + canards, twin engines ──────────
+float rafaleF(float x) {
+  float hl = 7.65;
+  float f = smoothstep(-hl, -hl + 4.2, x) * (1.0 - smoothstep(hl - 4.0, hl, x));
+  return pow(max(0.0, f), 0.5);
+}
+
+vec3 rafaleSample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  if (x < 12000.0) {
+    float lx = -7.65 + 15.30 * (mod(x, 480.0) / 479.0);
+    float f = rafaleF(lx);
+    float c = x * 2.399 + uTime * 0.34;
+    float r = 0.42 + 0.58 * abs(sin(x * 0.022));
+    alpha = (36.0 + 44.0 * abs(sin(c))) / 170.0;
+    glow = 0.2 + 0.4 * abs(sin(c));
+    return vec3(lx, 0.85 * f * sin(c) * r, 2.2 + 0.85 * f * cos(c) * r);
+  }
+  x -= 12000.0;
+  if (x < 900.0) {
+    float strip = floor(x / 300.0);
+    float lx = -7.65 + 15.30 * (mod(x, 300.0) / 299.0);
+    float f = rafaleF(lx);
+    alpha = strip < 0.5 ? 0.74 : strip < 1.5 ? 0.58 : 0.5; glow = 0.6;
+    if (strip < 0.5) return vec3(lx, 0.85 * f, 2.2);
+    if (strip < 1.5) return vec3(lx, -0.85 * f, 2.2);
+    return vec3(lx, 0.0, 2.2 + 0.85 * f);
+  }
+  x -= 900.0;
+  if (x < 1200.0) {
+    float u = x / 1199.0;
+    float c = u * TAU * 3.0 + uTime / 2.0;
+    float lx = 5.0 + 2.65 * pow(u, 0.6);
+    float f = rafaleF(lx);
+    alpha = 0.56; glow = 0.5;
+    if (u > 0.92) return vec3(lx + 0.9, 0.0, 2.2);
+    return vec3(lx, 0.85 * f * sin(c) * 0.8, 2.2 + 0.85 * f * cos(c) * 0.8);
+  }
+  x -= 1200.0;
+  if (x < 400.0) {
+    float side = floor(x / 200.0) < 0.5 ? -1.0 : 1.0;
+    float q = mod(x, 200.0) / 199.0;
+    alpha = 0.92; glow = 0.9;
+    return vec3(2.8 + 2.0 * q, side * (0.4 + 0.45 * sin(q * PI)), 2.7 + 0.5 * sin(q * PI));
+  }
+  x -= 400.0;
+  if (x < 28000.0) {
+    float side = floor(x / 14000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 14000.0);
+    float u = mod(i, 233.0) / 232.0;
+    float v = mod(floor(i / 233.0), 60.0) / 59.0;
+    alpha = 0.30 + 0.34 * (1.0 - u); glow = 0.32 + 0.22 * u;
+    return panelWing(side, u, v, vec2(2.6, -4.6), vec2(-5.6, -6.0), vec2(0.85, 5.45), -0.1, 0.25, 1.0);
+  }
+  x -= 28000.0;
+  if (x < 5000.0) {
+    float side = floor(x / 2500.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 2500.0);
+    alpha = 0.6; glow = 0.6;
+    if (local < 800.0) {
+      float edge = floor(local / 400.0);
+      return panelWing(side, mod(local, 400.0) / 399.0, edge, vec2(2.6, -4.6), vec2(-5.6, -6.0), vec2(0.85, 5.45), -0.1, 0.25, 1.0);
+    }
+    float rib = floor((local - 800.0) / 200.0);
+    float u = 0.1 + rib / 8.0 * 0.85;
+    return panelWing(side, u, mod(local - 800.0, 200.0) / 199.0, vec2(2.6, -4.6), vec2(-5.6, -6.0), vec2(0.85, 5.45), -0.1, 0.25, 1.0);
+  }
+  x -= 5000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 2000.0);
+    float u = mod(i, 100.0) / 99.0;
+    float v = mod(floor(i / 100.0), 20.0) / 19.0;
+    alpha = 0.52; glow = 0.58;
+    return panelWing(side, u, v, vec2(3.6, 2.2), vec2(2.4, 1.4), vec2(1.0, 2.3), 1.2, 0.2, 1.0);
+  }
+  x -= 4000.0;
+  if (x < 5000.0) {
+    if (x < 4200.0) {
+      float u = mod(x, 120.0) / 119.0;
+      float v = mod(floor(x / 120.0), 35.0) / 34.0;
+      alpha = 0.5; glow = 0.58;
+      return finPanel(u, v, vec2(-4.0, -6.6), vec2(-6.6, -7.4), vec2(2.4, 5.3));
+    }
+    float edge = floor((x - 4200.0) / 400.0);
+    alpha = 0.6; glow = 0.6;
+    return finPanel(mod(x - 4200.0, 400.0) / 399.0, edge, vec2(-4.0, -6.6), vec2(-6.6, -7.4), vec2(2.4, 5.3));
+  }
+  x -= 5000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 2000.0);
+    float cy = side * 1.1;
+    float h = floor(local / 100.0) / 19.0;
+    float c = mod(local, 100.0) / 100.0 * TAU;
+    alpha = 0.5; glow = 0.55;
+    return vec3(2.0 - h * 2.2, cy + 0.6 * cos(c) * 0.8, 1.7 + 0.6 * sin(c) * 0.8);
+  }
+  x -= 4000.0;
+  if (x < 6000.0) {
+    float side = floor(x / 3000.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 3000.0);
+    float cy = side * 0.55;
+    if (local < 1400.0) {
+      float h = floor(local / 70.0) / 19.0;
+      float c = mod(local, 70.0) / 70.0 * TAU;
+      alpha = 0.5; glow = 0.6;
+      return vec3(-6.0 - h * 1.8, cy + 0.5 * cos(c), 2.2 + 0.5 * sin(c));
+    }
+    float j = local - 1400.0;
+    float c = j * 0.2 + uTime * (1.5 + uBass * uReactivity * 3.0);
+    float r = 0.2 + (j / 1599.0) * 0.85;
+    alpha = 0.4 + uBass * 0.2 * uReactivity; glow = 0.9;
+    return vec3(-7.8 - (j / 1599.0) * 2.6, cy + cos(c) * r * 0.6, 2.2 + sin(c) * r * 0.6);
+  }
+  x -= 6000.0;
+  if (x < 1200.0) {
+    float gear = floor(x / 120.0);
+    float local = mod(x, 120.0);
+    float gx = gear < 0.5 ? 3.8 : -1.2;
+    float gy = gear < 0.5 ? 0.0 : (floor((gear - 1.0) / 5.0) < 0.5 ? -1.4 : 1.4);
+    if (local < 36.0) return refLine(local, 36.0, vec3(gx, gy, 1.3), vec3(gx, gy, 0.2), alpha, glow);
+    return refWheel(local - 36.0, gx, gy, 0.2, 0.3, alpha, glow);
+  }
+  x -= 1200.0;
+  if (x < 600.0) {
+    float seg = floor(x / 200.0);
+    float q = mod(x, 200.0);
+    if (seg < 0.5) return refLine(q, 200.0, vec3(-7.65, 0.0, 2.2), vec3(7.65, 0.0, 2.2), alpha, glow);
+    if (seg < 1.5) return refLine(q, 200.0, vec3(-1.5, -5.45, 1.8), vec3(-1.5, 5.45, 1.8), alpha, glow);
+    return refLine(q, 200.0, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 5.3), alpha, glow);
+  }
+  alpha = 0.0; glow = 0.0;
+  return vec3(0.0);
+}
+
+// ── Bréguet XIX "Point d'Interrogation" — biplane, fixed gear, propeller ─────
+vec3 breguetSample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  if (x < 12000.0) {
+    float lx = -5.36 + 10.72 * (mod(x, 480.0) / 479.0);
+    float hl = 5.36;
+    float f = smoothstep(-hl, -hl + 2.5, lx) * (1.0 - smoothstep(hl - 1.0, hl, lx));
+    f = pow(max(0.0, f), 0.5);
+    float c = x * 2.399 + uTime * 0.34;
+    float r = 0.42 + 0.58 * abs(sin(x * 0.025));
+    alpha = (40.0 + 40.0 * abs(sin(c))) / 170.0;
+    glow = 0.2 + 0.36 * abs(sin(c));
+    return vec3(lx, 0.7 * f * sin(c) * r, 1.4 + 0.7 * f * cos(c) * r);
+  }
+  x -= 12000.0;
+  if (x < 17000.0) {
+    float side = floor(x / 8500.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 8500.0);
+    float u = mod(i, 170.0) / 169.0;
+    float v = mod(floor(i / 170.0), 50.0) / 49.0;
+    alpha = 0.34 + 0.3 * (1.0 - u); glow = 0.34;
+    return biplaneWing(side, u, v, 9.15, 1.8, 1.5, 2.9);
+  }
+  x -= 17000.0;
+  if (x < 15000.0) {
+    float side = floor(x / 7500.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 7500.0);
+    float u = mod(i, 150.0) / 149.0;
+    float v = mod(floor(i / 150.0), 50.0) / 49.0;
+    alpha = 0.34 + 0.3 * (1.0 - u); glow = 0.34;
+    return biplaneWing(side, u, v, 8.0, 1.6, 1.2, 0.1);
+  }
+  x -= 15000.0;
+  if (x < 3200.0) {
+    float strut = floor(x / 400.0);
+    float side = mod(strut, 2.0) < 0.5 ? -1.0 : 1.0;
+    float sp = floor(strut / 2.0);
+    float yy = side * (2.0 + sp * 2.2);
+    alpha = 0.6; glow = 0.55;
+    return refLine(mod(x, 400.0), 400.0, vec3(1.4, yy, 0.2), vec3(1.6, yy, 2.8), alpha, glow);
+  }
+  x -= 3200.0;
+  if (x < 3200.0) {
+    float wire = floor(x / 400.0);
+    float side = mod(wire, 2.0) < 0.5 ? -1.0 : 1.0;
+    float diag = floor(wire / 2.0);
+    float sp = mod(diag, 2.0);
+    float y0 = side * (2.0 + sp * 2.2);
+    float y1 = side * (2.0 + (1.0 - sp) * 2.2);
+    alpha = 0.32; glow = 0.3;
+    return refLine(mod(x, 400.0), 400.0, vec3(1.5, y0, 0.2), vec3(1.5, y1, 2.8), alpha, glow);
+  }
+  x -= 3200.0;
+  if (x < 4000.0) {
+    float blade = floor(x / 500.0);
+    float q = mod(x, 500.0) / 499.0;
+    float c = blade / 8.0 * TAU + uTime * (4.0 + uBass * uReactivity * 4.0);
+    float R = q * 2.0;
+    alpha = 0.4 + uBass * 0.2 * uReactivity; glow = 0.8;
+    return vec3(5.4, R * cos(c), 1.4 + R * sin(c));
+  }
+  x -= 4000.0;
+  if (x < 3000.0) {
+    float h = floor(x / 120.0) / 24.0;
+    float c = mod(x, 120.0) / 120.0 * TAU;
+    float lx = 4.3 + h * 1.0;
+    float r = 0.75;
+    alpha = 0.55; glow = 0.55;
+    return vec3(lx, r * cos(c), 1.4 + r * sin(c));
+  }
+  x -= 3000.0;
+  if (x < 6000.0) {
+    float side = floor(x / 3000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 3000.0);
+    float u = mod(i, 120.0) / 119.0;
+    float v = mod(floor(i / 120.0), 25.0) / 24.0;
+    alpha = 0.46; glow = 0.48;
+    return biplaneWing(side, u, v, 3.3, 1.3, -4.6, 1.4);
+  }
+  x -= 6000.0;
+  if (x < 4000.0) {
+    float u = mod(x, 120.0) / 119.0;
+    float v = mod(floor(x / 120.0), 33.0) / 32.0;
+    alpha = 0.5; glow = 0.55;
+    return finPanel(u, v, vec2(-4.4, -5.2), vec2(-5.3, -5.4), vec2(1.8, 3.8));
+  }
+  x -= 4000.0;
+  if (x < 3000.0) {
+    float side = floor(x / 1500.0) < 0.5 ? -1.0 : 1.0;
+    float local = mod(x, 1500.0);
+    float gy = side * 1.6;
+    if (local < 500.0) return refLine(local, 500.0, vec3(1.2, side * 0.4, 0.6), vec3(2.0, gy, -1.2), alpha, glow);
+    if (local < 1000.0) return refLine(local - 500.0, 500.0, vec3(2.6, side * 0.4, 0.6), vec3(2.0, gy, -1.2), alpha, glow);
+    return refWheel(local - 1000.0, 2.0, gy, -1.2, 0.55, alpha, glow);
+  }
+  x -= 3000.0;
+  if (x < 600.0) {
+    float seg = floor(x / 200.0);
+    float q = mod(x, 200.0);
+    if (seg < 0.5) return refLine(q, 200.0, vec3(-5.36, 0.0, 1.4), vec3(5.36, 0.0, 1.4), alpha, glow);
+    if (seg < 1.5) return refLine(q, 200.0, vec3(1.5, -9.15, 2.9), vec3(1.5, 9.15, 2.9), alpha, glow);
+    return refLine(q, 200.0, vec3(1.2, -8.0, 0.1), vec3(1.2, 8.0, 0.1), alpha, glow);
+  }
+  alpha = 0.0; glow = 0.0;
+  return vec3(0.0);
+}
+
+// ── Ariane 5 — vertical launcher: core + 2 boosters + ogive fairing ──────────
+vec3 ariane5Sample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  if (x < 20000.0) {
+    float h = floor(x / 110.0) / 180.0;
+    float c = mod(x, 110.0) / 110.0 * TAU + uTime * 0.05;
+    alpha = 0.3 + 0.3 * abs(sin(c * 1.5)); glow = 0.3;
+    return zShell(0.0, 0.0, -22.0, 10.0, 2.7, 2.7, h, c);
+  }
+  x -= 20000.0;
+  if (x < 2000.0) {
+    float line = floor(x / 250.0);
+    float q = mod(x, 250.0) / 249.0;
+    float c = line / 8.0 * TAU;
+    alpha = 0.62; glow = 0.55;
+    return zShell(0.0, 0.0, -22.0, 10.0, 2.7, 2.7, q, c);
+  }
+  x -= 2000.0;
+  if (x < 5000.0) {
+    float h = floor(x / 90.0) / 54.0;
+    float c = mod(x, 90.0) / 90.0 * TAU;
+    alpha = 0.34; glow = 0.34;
+    return zShell(0.0, 0.0, 10.0, 19.0, 2.7, 2.55, h, c);
+  }
+  x -= 5000.0;
+  if (x < 6000.0) {
+    float h = floor(x / 90.0) / 65.0;
+    float c = mod(x, 90.0) / 90.0 * TAU;
+    float z = mix(19.0, 26.75, h);
+    float rr = 2.7 * (1.0 - pow(h, 1.5));
+    alpha = 0.4 + 0.2 * (1.0 - h); glow = 0.4;
+    return vec3(rr * cos(c), rr * sin(c), z);
+  }
+  x -= 6000.0;
+  if (x < 20000.0) {
+    float side = floor(x / 10000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 10000.0);
+    float h = floor(i / 100.0) / 99.0;
+    float c = mod(i, 100.0) / 100.0 * TAU;
+    alpha = 0.3 + 0.28 * abs(sin(c * 1.5)); glow = 0.3;
+    return zShell(side * 4.2, 0.0, -22.0, 9.5, 1.525, 1.525, h, c);
+  }
+  x -= 20000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 2000.0);
+    float h = floor(i / 80.0) / 24.0;
+    float c = mod(i, 80.0) / 80.0 * TAU;
+    float z = mix(9.5, 13.0, h);
+    float rr = 1.525 * (1.0 - pow(h, 1.4));
+    alpha = 0.4; glow = 0.4;
+    return vec3(side * 4.2 + rr * cos(c), rr * sin(c), z);
+  }
+  x -= 4000.0;
+  if (x < 4000.0) {
+    float h = floor(x / 100.0) / 39.0;
+    float c = mod(x, 100.0) / 100.0 * TAU;
+    float z = mix(-22.0, -26.5, h);
+    float rr = mix(1.0, 2.2, h);
+    alpha = 0.5; glow = 0.55;
+    return vec3(rr * cos(c), rr * sin(c), z);
+  }
+  x -= 4000.0;
+  if (x < 4000.0) {
+    float side = floor(x / 2000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 2000.0);
+    float h = floor(i / 80.0) / 24.0;
+    float c = mod(i, 80.0) / 80.0 * TAU;
+    float z = mix(-22.0, -25.5, h);
+    float rr = mix(0.7, 1.5, h);
+    alpha = 0.46; glow = 0.5;
+    return vec3(side * 4.2 + rr * cos(c), rr * sin(c), z);
+  }
+  x -= 4000.0;
+  if (x < 6000.0) {
+    float src = floor(x / 2000.0);
+    float cx = src < 0.5 ? 0.0 : (src < 1.5 ? -4.2 : 4.2);
+    float j = mod(x, 2000.0);
+    float q = j / 1999.0;
+    float c = q * TAU * 6.0 + uTime * 4.0;
+    float r = (0.3 + q * 1.6) * (src < 0.5 ? 1.4 : 1.0);
+    alpha = (0.4 + uBass * 0.3 * uReactivity) * (1.0 - q); glow = 0.92;
+    return vec3(cx + cos(c) * r, sin(c) * r, -26.5 - q * 10.0);
+  }
+  alpha = 0.0; glow = 0.0;
+  return vec3(0.0);
+}
+
+// ── Soyuz T spacecraft — orbital sphere + descent bell + service + arrays ────
+vec3 soyuzSample(float raw, out float alpha, out float glow) {
+  float x = raw;
+  if (x < 11000.0) {
+    float h = floor(x / 110.0) / 99.0;
+    float c = mod(x, 110.0) / 110.0 * TAU + uTime * 0.05;
+    alpha = 0.3 + 0.28 * abs(sin(c)); glow = 0.3;
+    return xShell(0.0, 0.0, -3.49, -0.6, 1.0, 1.2, h, c);
+  }
+  x -= 11000.0;
+  if (x < 12000.0) {
+    float h = floor(x / 120.0) / 99.0;
+    float c = mod(x, 120.0) / 120.0 * TAU;
+    float xx = mix(-0.6, 1.2, h);
+    float rr = mix(1.36, 0.85, pow(h, 1.3));
+    alpha = 0.34 + 0.2 * (1.0 - h); glow = 0.36;
+    return vec3(xx, rr * sin(c), rr * cos(c));
+  }
+  x -= 12000.0;
+  if (x < 12000.0) {
+    float h = floor(x / 120.0) / 99.0;
+    float c = mod(x, 120.0) / 120.0 * TAU;
+    alpha = 0.34 + 0.2 * abs(sin(c)); glow = 0.36;
+    return sphereShell(2.2, 0.0, 1.1, h, c);
+  }
+  x -= 12000.0;
+  if (x < 1500.0) {
+    float q = x / 1499.0;
+    alpha = 0.6; glow = 0.6;
+    return vec3(3.3 + q * 0.7, 0.06 * sin(q * 40.0), 0.06 * cos(q * 40.0));
+  }
+  x -= 1500.0;
+  if (x < 24000.0) {
+    float side = floor(x / 12000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 12000.0);
+    float u = mod(i, 120.0) / 119.0;
+    float v = mod(floor(i / 120.0), 100.0) / 99.0;
+    float yy = side * mix(1.4, 5.35, u);
+    float xx = -1.5 + (v - 0.5) * 2.4;
+    alpha = 0.26 + 0.2 * (1.0 - u); glow = 0.3;
+    return vec3(xx, yy, 0.05 * sin(u * 6.0));
+  }
+  x -= 24000.0;
+  if (x < 6000.0) {
+    float side = floor(x / 3000.0) < 0.5 ? -1.0 : 1.0;
+    float i = mod(x, 3000.0);
+    float cell = floor(i / 300.0);
+    float q = mod(i, 300.0) / 299.0;
+    alpha = 0.42; glow = 0.4;
+    if (cell < 5.0) {
+      float yy = side * mix(1.4, 5.35, cell / 4.0);
+      return vec3(-1.5 + (q - 0.5) * 2.4, yy, 0.05);
+    }
+    float xx = -1.5 + ((cell - 5.0) / 4.0 - 0.5) * 2.4;
+    return vec3(xx, side * mix(1.4, 5.35, q), 0.05);
+  }
+  x -= 6000.0;
+  if (x < 3000.0) {
+    float h = floor(x / 100.0) / 29.0;
+    float c = mod(x, 100.0) / 100.0 * TAU;
+    float xx = mix(-3.49, -4.2, h);
+    float rr = mix(0.5, 1.0, h);
+    alpha = 0.5; glow = 0.55;
+    return vec3(xx, rr * sin(c), rr * cos(c));
+  }
+  x -= 3000.0;
+  if (x < 2000.0) {
+    float ant = floor(x / 500.0);
+    float side = mod(ant, 2.0) < 0.5 ? -1.0 : 1.0;
+    alpha = 0.4; glow = 0.4;
+    if (ant < 2.0) return refLine(mod(x, 500.0), 500.0, vec3(2.2, side * 1.0, 0.8), vec3(2.6, side * 2.2, 1.8), alpha, glow);
+    return refLine(mod(x, 500.0), 500.0, vec3(-3.0, side * 1.0, 0.6), vec3(-3.4, side * 1.8, 1.4), alpha, glow);
+  }
+  alpha = 0.0; glow = 0.0;
+  return vec3(0.0);
+}
+
 vec3 sampleAircraft(float raw, out float alpha, out float glow) {
   if (isReferenceA380Profile()) return referenceA380Sample(raw, alpha, glow);
   if (isA350Profile()) return a350Sample(raw, alpha, glow);
   if (isStructuralProfile()) return a380StructuralSample(raw, alpha, glow);
   if (isGeneralA380Profile()) return a380AeroSample(raw, alpha, glow);
   if (isWingBoxProfile()) return wingBoxSample(raw, alpha, glow);
+  if (isConcordeProfile()) return concordeSample(raw, alpha, glow);
+  if (isB747Profile()) return b747Sample(raw, alpha, glow);
+  if (isMirageProfile()) return mirageSample(raw, alpha, glow);
+  if (isRafaleProfile()) return rafaleSample(raw, alpha, glow);
+  if (isBreguetProfile()) return breguetSample(raw, alpha, glow);
+  if (isAriane5Profile()) return ariane5Sample(raw, alpha, glow);
+  if (isSoyuzProfile()) return soyuzSample(raw, alpha, glow);
   float x = raw;
   if (x < S_FUSELAGE) return fuselageSample(x, alpha, glow);
   x -= S_FUSELAGE;
@@ -1404,6 +2456,48 @@ void main() {
     model.y += sin(model.x * 0.045 + uTime * 0.4) * uBass * 0.11 * uReactivity;
     p = projectAircraftIso(model.x, model.y, model.z, 1.36, 232.0, -0.62 + 0.025 * sin(uTime / 3.0), 520.0, 0.175);
     scale = 200.0;
+  } else if (isConcordeProfile()) {
+    float shimmer = sin(model.x * 0.8 + uTime + aIndex * 0.006) * 0.5 + 0.5;
+    model.z += shimmer * uMid * 0.12 * uReactivity;
+    model.y += sin(model.x * 0.16 + uTime * 0.32) * uBass * 0.05 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 4.85, 250.0, -0.5 + 0.035 * sin(uTime / 2.5), 240.0, 0.2);
+    scale = 200.0;
+  } else if (isB747Profile()) {
+    float shimmer = sin(model.x * 0.7 + uTime + aIndex * 0.005) * 0.5 + 0.5;
+    model.z += shimmer * uMid * 0.14 * uReactivity;
+    model.y += sin(model.x * 0.1 + uTime * 0.3) * uBass * 0.07 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 3.9, 250.0, -0.5 + 0.035 * sin(uTime / 2.4), 262.0, 0.21);
+    scale = 200.0;
+  } else if (isMirageProfile()) {
+    float shimmer = sin(model.x * 1.4 + uTime + aIndex * 0.008) * 0.5 + 0.5;
+    model.z += shimmer * uMid * 0.10 * uReactivity;
+    model.y += sin(model.x * 0.3 + uTime * 0.32) * uBass * 0.04 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 12.5, 244.0, -0.5 + 0.04 * sin(uTime / 2.3), 70.0, 0.2);
+    scale = 200.0;
+  } else if (isRafaleProfile()) {
+    float shimmer = sin(model.x * 1.5 + uTime + aIndex * 0.008) * 0.5 + 0.5;
+    model.z += shimmer * uMid * 0.10 * uReactivity;
+    model.y += sin(model.x * 0.32 + uTime * 0.32) * uBass * 0.04 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 15.0, 244.0, -0.5 + 0.04 * sin(uTime / 2.3), 60.0, 0.2);
+    scale = 200.0;
+  } else if (isBreguetProfile()) {
+    float shimmer = sin(model.x * 1.2 + uTime + aIndex * 0.007) * 0.5 + 0.5;
+    model.z += shimmer * uMid * 0.10 * uReactivity;
+    model.y += sin(model.x * 0.2 + uTime * 0.3) * uBass * 0.05 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 13.5, 240.0, -0.46 + 0.04 * sin(uTime / 2.5), 70.0, 0.22);
+    scale = 200.0;
+  } else if (isAriane5Profile()) {
+    float shimmer = sin(model.z * 0.3 + uTime + aIndex * 0.01) * 0.5 + 0.5;
+    model.x += shimmer * uMid * 0.06 * uReactivity;
+    model.y += sin(model.z * 0.2 + uTime * 0.3) * uBass * 0.05 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 5.0, 200.0, -0.32 + 0.03 * sin(uTime / 3.0), 200.0, 0.06);
+    scale = 200.0;
+  } else if (isSoyuzProfile()) {
+    float shimmer = sin(model.x * 1.5 + uTime + aIndex * 0.009) * 0.5 + 0.5;
+    model.z += shimmer * uMid * 0.08 * uReactivity;
+    model.y += sin(model.x * 0.4 + uTime * 0.32) * uBass * 0.05 * uReactivity;
+    p = projectAircraftIso(model.x, model.y, model.z, 20.0, 222.0, -0.5 + 0.035 * sin(uTime / 2.6), 60.0, 0.22);
+    scale = 200.0;
   } else {
     model = applyProfile(model);
     float shimmer = sin(model.x / 21.0 - uTime + aIndex * 0.013) * 0.55 + 0.45;
@@ -1419,9 +2513,9 @@ void main() {
   float audioGlow = uBrilliance * 0.28 + uFlux * 0.18 + uBeatPulse * 0.16;
   gl_PointSize = (1.15 + glow * 0.9 + grain * 0.22 + uRms * 0.8 + audioGlow * uReactivity) * 1.32;
 
-  vec3 blueprint = isReferenceA380Profile() ? vec3(0.52, 0.84, 1.0) : isA350Profile() ? vec3(0.58, 0.92, 1.0) : isStructuralProfile() ? vec3(0.68, 0.86, 1.0) : isWingBoxProfile() ? vec3(0.36, 0.86, 1.0) : vec3(0.50, 0.80, 1.0);
+  vec3 blueprint = isReferenceA380Profile() ? vec3(0.52, 0.84, 1.0) : isConcordeProfile() ? vec3(0.64, 0.90, 1.0) : isB747Profile() ? vec3(0.55, 0.86, 1.0) : isMirageProfile() ? vec3(0.70, 0.92, 1.0) : isRafaleProfile() ? vec3(0.66, 0.94, 1.0) : isBreguetProfile() ? vec3(0.82, 0.88, 1.0) : isAriane5Profile() ? vec3(0.78, 0.90, 1.0) : isSoyuzProfile() ? vec3(0.72, 0.95, 1.0) : isA350Profile() ? vec3(0.58, 0.92, 1.0) : isStructuralProfile() ? vec3(0.68, 0.86, 1.0) : isWingBoxProfile() ? vec3(0.36, 0.86, 1.0) : vec3(0.50, 0.80, 1.0);
   vec3 white = vec3(1.16, 1.18, 1.12);
-  vec3 low = isReferenceA380Profile() ? vec3(0.09, 0.13, 0.15) : isA350Profile() ? vec3(0.08, 0.15, 0.17) : isWingBoxProfile() ? vec3(0.08, 0.16, 0.18) : vec3(0.11, 0.16, 0.20);
+  vec3 low = isReferenceA380Profile() ? vec3(0.09, 0.13, 0.15) : isConcordeProfile() ? vec3(0.10, 0.14, 0.17) : isBreguetProfile() ? vec3(0.13, 0.14, 0.16) : (isAriane5Profile() || isSoyuzProfile()) ? vec3(0.10, 0.15, 0.19) : isA350Profile() ? vec3(0.08, 0.15, 0.17) : isWingBoxProfile() ? vec3(0.08, 0.16, 0.18) : vec3(0.11, 0.16, 0.20);
   float ink = alpha + glow * 0.28 + audioGlow * uReactivity;
   vec3 col = mix(low, blueprint, clamp(ink * 1.2, 0.0, 1.0));
   col = mix(col, white, clamp(glow * 0.62 + uBeatPulse * 0.10, 0.0, 1.0));

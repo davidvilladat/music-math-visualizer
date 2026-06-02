@@ -406,7 +406,7 @@ export class Renderer {
       }
     } else if (e.key === 'p' || e.key === 'P') {
       const { devParams, setDevParams } = useStore.getState()
-      this.aircraftVariant = (this.aircraftVariant + 1) % 5
+      this.aircraftVariant = (this.aircraftVariant + 1) % 12
       if (devParams.visualMode !== 'airframe') {
         if (isFormulaMode(devParams.visualMode)) this.lastMathMode = devParams.visualMode
         setDevParams({ visualMode: 'airframe' })
