@@ -13,6 +13,12 @@ import { AudioEngine } from '../audio/audioEngine'
 import { DemoEngine } from '../audio/DemoEngine'
 import { makeAudioFeatures, type AudioFeatures } from '../audio/audioFeatures'
 import { useStore, AIRCRAFT_VARIANTS, type DevParams } from '../state/store'
+import {
+  formulaVariantFor,
+  isFormulaMode,
+  nextFormulaMode,
+  type FormulaMode,
+} from '../visualModes'
 
 function hueToRgb(h: number): [number, number, number] {
   const h6 = (h % 1) * 6
@@ -23,41 +29,6 @@ function hueToRgb(h: number): [number, number, number] {
   if (h6 < 4) return [0, x, 1]
   if (h6 < 5) return [x, 0, 1]
   return [1, 0, x]
-}
-
-const FORMULA_MODE_KEYS = ['formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon', 'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint', 'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism'] as const
-type FormulaMode = typeof FORMULA_MODE_KEYS[number]
-
-const FORMULA_VARIANTS: Record<FormulaMode, number> = {
-  formula: 0,
-  feather: 1,
-  pulse: 2,
-  grid: 3,
-  orbit: 4,
-  wing: 5,
-  bloom: 6,
-  ribbon: 7,
-  helix: 8,
-  field: 9,
-  echo: 10,
-  flare: 11,
-  surge: 12,
-  lyra: 13,
-  veil: 14,
-  ember: 15,
-  glint: 16,
-  wave: 17,
-  cyclone: 18,
-  lattice: 19,
-  petal: 20,
-  comet: 21,
-  chroma: 22,
-  attractor: 23,
-  prism: 24,
-}
-
-function isFormulaMode(mode: DevParams['visualMode']): mode is FormulaMode {
-  return Object.prototype.hasOwnProperty.call(FORMULA_VARIANTS, mode)
 }
 
 const REACTIVITY_PRESETS: Record<DevParams['reactivity'], { visual: number; tempo: number }> = {
@@ -165,6 +136,7 @@ export class Renderer {
     this.stopLoop()
     this.engine.setOnEnded(null)
     this.engine.stop()
+    this.spectrumScene.dispose()
     this.fluid.dispose()
     this.post.dispose()
     this.particles.dispose()
@@ -279,7 +251,7 @@ export class Renderer {
     } else if (isFormulaMode(mode)) {
       // ── Formula: parametric spiral point cloud ─────────────────────────
       this.formula.update(dt, this.features, {
-        variant:    FORMULA_VARIANTS[mode],
+        variant:    formulaVariantFor(mode),
         speed:      devParams.formulaSpeed,
         zoom:       devParams.formulaZoom,
         waveAmp:    devParams.formulaWaveAmp,
@@ -386,7 +358,7 @@ export class Renderer {
     if (e.key === 'v' || e.key === 'V') {
       const { devParams, setDevParams } = useStore.getState()
       const current = isFormulaMode(devParams.visualMode) ? devParams.visualMode : this.lastMathMode
-      const next = FORMULA_MODE_KEYS[(FORMULA_MODE_KEYS.indexOf(current) + 1) % FORMULA_MODE_KEYS.length]
+      const next = nextFormulaMode(current)
       this.lastMathMode = next
       setDevParams({ visualMode: next })
     } else if (e.key === 's' || e.key === 'S') {

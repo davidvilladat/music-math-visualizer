@@ -66,11 +66,31 @@ export class SoundCloudPlayer {
     this.widget = window.SC.Widget(this.iframe)
 
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('SoundCloud widget timed out')), 20_000)
-      this.widget!.bind(window.SC.Widget.Events.READY, () => {
-        clearTimeout(timer)
-        this.bindWidgetEvents()
-        resolve()
+      const events = window.SC.Widget.Events
+      let settled = false
+      let timer = 0
+
+      const finish = (done: () => void) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        this.widget?.unbind(events.READY)
+        this.widget?.unbind(events.ERROR)
+        done()
+      }
+
+      timer = window.setTimeout(() => {
+        finish(() => reject(new Error('SoundCloud widget timed out')))
+      }, 20_000)
+
+      this.widget!.bind(events.READY, () => {
+        finish(() => {
+          this.bindWidgetEvents()
+          resolve()
+        })
+      })
+      this.widget!.bind(events.ERROR, () => {
+        finish(() => reject(new Error('SoundCloud widget could not load this URL')))
       })
     })
   }
@@ -129,7 +149,10 @@ export class SoundCloudPlayer {
       const s = document.createElement('script')
       s.src     = WIDGET_API
       s.onload  = () => resolve()
-      s.onerror = () => reject(new Error('Failed to load SoundCloud Widget API'))
+      s.onerror = () => {
+        apiPromise = null
+        reject(new Error('Failed to load SoundCloud Widget API'))
+      }
       document.head.appendChild(s)
     })
     return apiPromise

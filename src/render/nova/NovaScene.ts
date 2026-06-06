@@ -20,6 +20,7 @@ export class NovaScene {
   private scene  = new THREE.Scene()
   private camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   private mat    : THREE.RawShaderMaterial
+  private geo    : THREE.PlaneGeometry
 
   private specData: Uint8Array<ArrayBuffer>
   private specTex : THREE.DataTexture
@@ -64,7 +65,8 @@ export class NovaScene {
       depthWrite: false,
     })
 
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat)
+    this.geo = new THREE.PlaneGeometry(2, 2)
+    const mesh = new THREE.Mesh(this.geo, this.mat)
     this.scene.add(mesh)
   }
 
@@ -119,6 +121,7 @@ export class NovaScene {
 
   dispose(): void {
     this.specTex.dispose()
+    this.geo.dispose()
     this.mat.dispose()
   }
 }

@@ -116,6 +116,7 @@ export class PostProcessStack {
   dispose(): void {
     this.sourceRT.dispose()
     this.bloomRT.dispose()
+    this.quadMesh.geometry.dispose()
     ;[this.mThreshold, this.mBlur, this.mComposite].forEach((m) => m.dispose())
   }
 

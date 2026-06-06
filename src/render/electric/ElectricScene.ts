@@ -181,6 +181,7 @@ export class ElectricScene {
 
   dispose(): void {
     this.specTex.dispose()
+    this.quadMesh.geometry.dispose()
     ;[this.mPlasma, this.mWave, this.mBolt].forEach((m) => m.dispose())
     this.boltGeo.dispose()
   }

@@ -19,9 +19,11 @@ const REACTIVITY: { key: Reactivity; label: string }[] = [
 
 interface Props {
   onChangeSource?: () => void
+  onSharePreset?: () => void
+  shareLabel?: string | null
 }
 
-export function TopBar({ onChangeSource }: Props) {
+export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
   const track = useStore((s) => s.currentTrack)
   const isPlaying = useStore((s) => s.isPlaying)
   const visualMode = useStore((s) => s.devParams.visualMode)
@@ -71,7 +73,10 @@ export function TopBar({ onChangeSource }: Props) {
   }
 
   return (
-    <div style={{ ...bar, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none' }}>
+    <div
+      style={{ ...bar, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none' }}
+      data-testid="top-bar"
+    >
       <div style={trackSection}>
         {art ? <img src={art} alt="" style={albumArt} /> : <div style={artPlaceholder} />}
         <div style={trackInfo}>
@@ -127,6 +132,12 @@ export function TopBar({ onChangeSource }: Props) {
             </option>
           ))}
         </select>
+
+        {onSharePreset && (
+          <button onClick={onSharePreset} style={sourceButton} title="Copy visual preset link">
+            {shareLabel ?? 'Share'}
+          </button>
+        )}
 
         {onChangeSource && (
           <button onClick={onChangeSource} style={sourceButton} title="Change audio source">

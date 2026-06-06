@@ -17,7 +17,23 @@ function saveTokens(tokens: Tokens): void {
 
 function loadTokens(): Tokens | null {
   const raw = sessionStorage.getItem(TOKEN_KEY)
-  return raw ? (JSON.parse(raw) as Tokens) : null
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<Tokens>
+    if (
+      typeof parsed.accessToken !== 'string' ||
+      typeof parsed.refreshToken !== 'string' ||
+      typeof parsed.expiresAt !== 'number'
+    ) {
+      clearTokens()
+      return null
+    }
+    return parsed as Tokens
+  } catch {
+    clearTokens()
+    return null
+  }
 }
 
 export function clearTokens(): void {
@@ -27,7 +43,10 @@ export function clearTokens(): void {
 export function getAccessToken(): string | null {
   const tokens = loadTokens()
   if (!tokens) return null
-  if (Date.now() > tokens.expiresAt) return null
+  if (Date.now() > tokens.expiresAt) {
+    clearTokens()
+    return null
+  }
   return tokens.accessToken
 }
 
@@ -116,5 +135,7 @@ export async function getValidToken(): Promise<string> {
   const tokens = loadTokens()
   if (!tokens) throw new Error('Not authenticated')
   if (Date.now() > tokens.expiresAt) await refreshAccessToken()
-  return loadTokens()!.accessToken
+  const refreshed = loadTokens()
+  if (!refreshed) throw new Error('Not authenticated')
+  return refreshed.accessToken
 }

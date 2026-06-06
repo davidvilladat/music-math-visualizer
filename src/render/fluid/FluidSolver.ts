@@ -254,6 +254,7 @@ export class FluidSolver {
     this.divergence.dispose()
     this.curl.dispose()
     this.pressure.dispose()
+    this.quadMesh.geometry.dispose()
     ;[
       this.mSplat, this.mAdvect, this.mDivergence, this.mCurl,
       this.mVorticity, this.mPressure, this.mGradSubtract,

@@ -3,3 +3,6 @@ dist/
 .env.local
 .env*.local
 *.log
+aircraft_blueprints_repository/
+test-results/
+playwright-report/

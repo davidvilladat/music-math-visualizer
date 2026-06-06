@@ -7,6 +7,7 @@ const BAR_COUNT = 128
 
 export class SpectrumScene {
   readonly scene: THREE.Scene
+  private geometry: THREE.InstancedBufferGeometry
   private material: THREE.RawShaderMaterial
   private instanceData: Float32Array
   private instanceBuffer: THREE.InstancedBufferAttribute
@@ -16,6 +17,7 @@ export class SpectrumScene {
 
     // unit quad: x in [-0.5, 0.5], y in [0, 1] so scaling Y keeps base at 0
     const geo = new THREE.InstancedBufferGeometry()
+    this.geometry = geo
     const planeGeo = new THREE.PlaneGeometry(1, 1)
     planeGeo.translate(0, 0.5, 0) // pivot at bottom
     geo.index = planeGeo.index
@@ -57,5 +59,10 @@ export class SpectrumScene {
       this.instanceData[b * 2 + 1] = features.spectrum[Math.min(binIdx, bins - 1)]
     }
     this.instanceBuffer.needsUpdate = true
+  }
+
+  dispose(): void {
+    this.geometry.dispose()
+    this.material.dispose()
   }
 }

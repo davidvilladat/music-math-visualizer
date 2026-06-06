@@ -1,49 +1,51 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { getAccessToken, redirectToLogin } from '../auth/authService'
 import { VISUAL_MODE_META, type DevParams } from '../state/store'
+import type { SourceState, SourceTab } from '../state/sourceState'
 
 type VisualMode = DevParams['visualMode']
-type Tab = 'soundcloud' | 'spotify' | 'demo'
 
 const MODES = VISUAL_MODE_META
 
 interface Props {
-  onStart:        (url: string) => Promise<void>
-  onDemo:         (mode: VisualMode) => void
-  onSpotify:      () => void
-  error:          string | null
-  spotifyError:   string | null
-  spotifyLoading: boolean
-  initialTab?:    Tab
+  sourceState: SourceState
+  onStart: (url: string) => Promise<void>
+  onDemo: (mode: VisualMode) => void
+  onSpotify: () => void
 }
 
-function isSoundCloudUrl(raw: string): boolean {
+export function isSoundCloudUrl(raw: string): boolean {
   try {
-    const u = new URL(raw.trim())
-    return ['soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com'].includes(u.hostname)
+    const url = new URL(raw.trim())
+    return ['soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com'].includes(url.hostname)
   } catch {
     return false
   }
 }
 
-export function SoundCloudGate({
-  onStart, onDemo, onSpotify,
-  error, spotifyError, spotifyLoading,
-  initialTab = 'soundcloud',
-}: Props) {
+function initialTabFor(state: SourceState): SourceTab {
+  return 'initialTab' in state ? state.initialTab : 'soundcloud'
+}
+
+export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [tab, setTab] = useState<Tab>(initialTab)
+  const [tab, setTab] = useState<SourceTab>(initialTabFor(sourceState))
   const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
   const [validErr, setValidErr] = useState<string | null>(null)
   const [demoMode, setDemoMode] = useState<VisualMode>('formula')
 
   const isSpotifyAuthed = !!getAccessToken()
-  const anyScError = validErr ?? (tab === 'soundcloud' ? error : null)
+  const connectingSource = sourceState.status === 'connecting' ? sourceState.source : null
+  const sourceError = sourceState.status === 'error' ? sourceState : null
+  const captureMessage = sourceState.status === 'capture-ended' ? sourceState.message : null
+  const soundCloudError = validErr ?? (sourceError?.source === 'soundcloud' ? sourceError.message : null)
+  const spotifyError = sourceError?.source === 'spotify' ? sourceError.message : null
+  const soundCloudLoading = connectingSource === 'soundcloud'
+  const spotifyLoading = connectingSource === 'spotify'
 
   useEffect(() => {
-    setTab(initialTab)
-  }, [initialTab])
+    setTab(initialTabFor(sourceState))
+  }, [sourceState])
 
   const handleScSubmit = async () => {
     const trimmed = url.trim()
@@ -54,12 +56,7 @@ export function SoundCloudGate({
     }
 
     setValidErr(null)
-    setLoading(true)
-    try {
-      await onStart(trimmed)
-    } finally {
-      setLoading(false)
-    }
+    await onStart(trimmed)
   }
 
   return (
@@ -86,6 +83,8 @@ export function SoundCloudGate({
           ))}
         </nav>
 
+        {captureMessage && <p style={warningText}>{captureMessage}</p>}
+
         <div style={content}>
           {tab === 'soundcloud' && (
             <>
@@ -96,24 +95,32 @@ export function SoundCloudGate({
                 type="url"
                 placeholder="https://soundcloud.com/artist/track"
                 value={url}
-                onChange={(e) => {
-                  setUrl(e.target.value)
+                onChange={(event) => {
+                  setUrl(event.target.value)
                   setValidErr(null)
                 }}
-                onKeyDown={(e) => e.key === 'Enter' && void handleScSubmit()}
-                style={{ ...input, borderColor: anyScError ? '#f87171' : 'rgba(255,255,255,0.12)' }}
-                disabled={loading}
+                onKeyDown={(event) => event.key === 'Enter' && void handleScSubmit()}
+                style={{ ...input, borderColor: soundCloudError ? '#f87171' : 'rgba(255,255,255,0.12)' }}
+                disabled={soundCloudLoading}
                 autoComplete="off"
                 spellCheck={false}
               />
-              {anyScError && <p style={errorText}>{anyScError}</p>}
+              {soundCloudError && <p style={errorText}>{soundCloudError}</p>}
               <button
                 type="button"
                 onClick={() => void handleScSubmit()}
-                disabled={loading || !url}
-                style={{ ...primaryButton, opacity: loading || !url ? 0.45 : 1 }}
+                disabled={soundCloudLoading || !url}
+                style={{ ...primaryButton, opacity: soundCloudLoading || !url ? 0.45 : 1 }}
               >
-                {loading ? 'Loading' : 'Visualize'}
+                {soundCloudLoading ? 'Loading' : 'Visualize SoundCloud'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDemo('formula')}
+                style={secondaryButton}
+                data-testid="launch-demo"
+              >
+                Start Demo
               </button>
               <p style={note}>When Chrome opens the share dialog, choose this tab and enable "Share tab audio".</p>
             </>
@@ -129,13 +136,17 @@ export function SoundCloudGate({
               ) : spotifyError ? (
                 <>
                   <p style={errorText}>{spotifyError}</p>
-                  <button type="button" onClick={() => void redirectToLogin()} style={primaryButton}>
-                    Try Again
+                  <button
+                    type="button"
+                    onClick={isSpotifyAuthed ? onSpotify : () => void redirectToLogin()}
+                    style={primaryButton}
+                  >
+                    {isSpotifyAuthed ? 'Retry Spotify' : 'Connect Spotify'}
                   </button>
                 </>
               ) : isSpotifyAuthed ? (
                 <>
-                  <p style={mutedText}>Spotify is connected. Premium is required for browser playback.</p>
+                  <p style={mutedText}>Spotify uses Premium browser playback and still needs tab audio capture for visuals.</p>
                   <button type="button" onClick={onSpotify} style={primaryButton}>
                     Launch Spotify
                   </button>
@@ -145,7 +156,7 @@ export function SoundCloudGate({
                 </>
               ) : (
                 <>
-                  <p style={mutedText}>Connect Spotify, then share tab audio when prompted.</p>
+                  <p style={mutedText}>Spotify is an advanced path: connect a Premium account, then share tab audio when prompted.</p>
                   <button type="button" onClick={() => void redirectToLogin()} style={primaryButton}>
                     Connect Spotify
                   </button>
@@ -160,14 +171,19 @@ export function SoundCloudGate({
               <select
                 id="demo-mode"
                 value={demoMode}
-                onChange={(e) => setDemoMode(e.target.value as VisualMode)}
+                onChange={(event) => setDemoMode(event.target.value as VisualMode)}
                 style={select}
               >
                 {MODES.map((mode) => (
                   <option key={mode.key} value={mode.key}>{mode.label}</option>
                 ))}
               </select>
-              <button type="button" onClick={() => onDemo(demoMode)} style={primaryButton}>
+              <button
+                type="button"
+                onClick={() => onDemo(demoMode)}
+                style={primaryButton}
+                data-testid="launch-demo-selected"
+              >
                 Launch Demo
               </button>
               <p style={note}>Synthetic audio only. No login or capture prompt.</p>
@@ -188,6 +204,7 @@ const page: CSSProperties = {
   color: 'var(--fg)',
   fontFamily: 'var(--font-ui)',
   padding: 24,
+  zIndex: 5,
 }
 
 const panel: CSSProperties = {
@@ -321,6 +338,11 @@ const errorText: CSSProperties = {
   color: '#f87171',
   fontSize: 12,
   lineHeight: 1.5,
+}
+
+const warningText: CSSProperties = {
+  ...errorText,
+  color: '#fbbf24',
 }
 
 const quietBlock: CSSProperties = {

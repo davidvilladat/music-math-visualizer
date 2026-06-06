@@ -179,6 +179,7 @@ export class ParticleSystem {
   dispose(): void {
     this.posFBO.dispose()
     this.trailFBO.dispose()
+    this.quadMesh.geometry.dispose()
     this.pointsGeo.dispose()
     ;[this.mAdvect, this.mParticle, this.mDecay, this.mDisplay].forEach(m => m.dispose())
   }

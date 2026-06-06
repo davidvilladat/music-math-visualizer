@@ -1,161 +1,204 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { BrowserCheck }    from './ui/BrowserCheck'
-import { SoundCloudGate }  from './ui/SoundCloudGate'
-import { Canvas }          from './ui/Canvas'
-import { TopBar }          from './ui/TopBar'
-import { DevPanel }        from './ui/DevPanel'
-import { DebugOverlay }    from './ui/DebugOverlay'
-import { ModeHUD }         from './ui/ModeHUD'
-import { AircraftHUD }     from './ui/AircraftHUD'
-import { DemoBanner }      from './ui/DemoBanner'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { BrowserCheck } from './ui/BrowserCheck'
+import { SoundCloudGate } from './ui/SoundCloudGate'
+import { Canvas } from './ui/Canvas'
+import { TopBar } from './ui/TopBar'
+import { DevPanel } from './ui/DevPanel'
+import { DebugOverlay } from './ui/DebugOverlay'
+import { ModeHUD } from './ui/ModeHUD'
+import { AircraftHUD } from './ui/AircraftHUD'
+import { DemoBanner } from './ui/DemoBanner'
 import { destroyScPlayer, initScPlayer } from './soundcloud/SoundCloudPlayer'
 import { loadSpotifySDK, initPlayer, disconnectPlayer } from './spotify/player'
 import { exchangeCodeForTokens } from './auth/authService'
 import { isPremium } from './spotify/api'
-import { useStore }        from './state/store'
-import type { DevParams }  from './state/store'
-import type { Renderer }   from './render/renderer'
+import { useStore, type DevParams } from './state/store'
+import { isEntryState, type SourceState } from './state/sourceState'
+import {
+  loadVisualPreset,
+  parsePresetQuery,
+  presetFromDevParams,
+  saveVisualPreset,
+  serializePresetQuery,
+} from './state/visualPreset'
+import type { Renderer } from './render/renderer'
 
-type Stage = 'browser' | 'soundcloud' | 'active'
 type VisualMode = DevParams['visualMode']
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
+}
+
+function cleanOAuthCallbackUrl(params: URLSearchParams): void {
+  params.delete('code')
+  params.delete('state')
+  const nextQuery = params.toString()
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`
+  window.history.replaceState({}, '', nextUrl)
+}
+
 export function App() {
-  const [stage, setStage]             = useState<Stage>('browser')
-  const [scError, setScError]         = useState<string | null>(null)
-  const [spotifyError, setSpotifyError] = useState<string | null>(null)
-  const [spotifyLoading, setSpotifyLoading] = useState(false)
-  const [isDemo, setIsDemo]           = useState(false)
-  const rendererRef                   = useRef<Renderer | null>(null)
-  const [renderer, setRenderer]       = useState<Renderer | null>(null)
-
-  // Pending OAuth code — set on mount if URL contains ?code=
+  const [browserReady, setBrowserReady] = useState(false)
+  const [sourceState, setSourceState] = useState<SourceState>({ status: 'idle', initialTab: 'soundcloud' })
   const [pendingCode, setPendingCode] = useState<string | null>(null)
+  const [presetsReady, setPresetsReady] = useState(false)
+  const [shareLabel, setShareLabel] = useState<string | null>(null)
+  const rendererRef = useRef<Renderer | null>(null)
+  const [renderer, setRenderer] = useState<Renderer | null>(null)
 
-  const setTrack     = useStore((s) => s.setTrack)
-  const setPlaying   = useStore((s) => s.setPlaying)
-  const setDevParams = useStore((s) => s.setDevParams)
-  const debugVisible = useStore((s) => s.debugVisible)
+  const setTrack = useStore((state) => state.setTrack)
+  const setPlaying = useStore((state) => state.setPlaying)
+  const setDevParams = useStore((state) => state.setDevParams)
+  const debugVisible = useStore((state) => state.debugVisible)
+  const visualMode = useStore((state) => state.devParams.visualMode)
+  const reactivity = useStore((state) => state.devParams.reactivity)
+  const aircraftVariant = useStore((state) => state.devParams.aircraftVariant)
 
-  // Detect Spotify OAuth callback on first mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const code   = params.get('code')
+    const storedPreset = loadVisualPreset()
+    const queryPreset = parsePresetQuery(params)
+    setDevParams({ ...(storedPreset ?? {}), ...queryPreset })
+
+    const code = params.get('code')
     if (code) {
-      // Clean up URL so a refresh doesn't re-try the consumed code
-      window.history.replaceState({}, '', window.location.pathname)
-      setStage('soundcloud')      // skip browser check, warm up canvas
+      cleanOAuthCallbackUrl(params)
+      setBrowserReady(true)
+      setSourceState({ status: 'connecting', source: 'spotify', initialTab: 'spotify' })
       setPendingCode(code)
-      setSpotifyLoading(true)
     }
-  }, [])
 
-  // Once renderer is ready AND we have a pending code, auto-start Spotify
+    setPresetsReady(true)
+  }, [setDevParams])
+
   useEffect(() => {
-    if (pendingCode && renderer) {
-      void startSpotify(pendingCode)
-      setPendingCode(null)
-    }
-  }, [pendingCode, renderer])  // eslint-disable-line react-hooks/exhaustive-deps
+    if (!presetsReady) return
+    saveVisualPreset({ visualMode, reactivity, aircraftVariant })
+  }, [aircraftVariant, presetsReady, reactivity, visualMode])
 
-  const onRendererReady = useCallback((r: Renderer) => {
-    rendererRef.current = r
-    r.setCaptureEndedHandler(() => {
-      disconnectPlayer()
-      destroyScPlayer()
-      setTrack(null)
-      setPlaying(false)
-      setIsDemo(false)
-      setScError('Audio capture ended. Start again and keep "Share tab audio" enabled.')
-      setSpotifyError(null)
-      setStage('soundcloud')
-    })
-    setRenderer(r)
-  }, [setPlaying, setTrack])
+  useEffect(() => {
+    if (!shareLabel) return
+    const timer = setTimeout(() => setShareLabel(null), 1800)
+    return () => clearTimeout(timer)
+  }, [shareLabel])
 
-  // ── Spotify ───────────────────────────────────────────────────────────────
-
-  const startSpotify = async (code?: string) => {
-    const r = rendererRef.current
-    if (!r) return
-    setSpotifyError(null)
-    setSpotifyLoading(true)
-    setScError(null)
-    r.stopDemo()
-    destroyScPlayer()
-    disconnectPlayer()
-    setIsDemo(false)
+  const resetPlaybackState = useCallback(() => {
     setTrack(null)
     setPlaying(false)
+  }, [setPlaying, setTrack])
+
+  const stopAllSources = useCallback(() => {
+    rendererRef.current?.stopDemo()
+    rendererRef.current?.stopAudio()
+    disconnectPlayer()
+    destroyScPlayer()
+    resetPlaybackState()
+  }, [resetPlaybackState])
+
+  const onRendererReady = useCallback((readyRenderer: Renderer) => {
+    rendererRef.current = readyRenderer
+    readyRenderer.setCaptureEndedHandler(() => {
+      disconnectPlayer()
+      destroyScPlayer()
+      resetPlaybackState()
+      setSourceState({
+        status: 'capture-ended',
+        initialTab: 'soundcloud',
+        message: 'Audio capture ended. Start again and keep "Share tab audio" enabled.',
+      })
+    })
+    setRenderer(readyRenderer)
+  }, [resetPlaybackState])
+
+  const startSpotify = useCallback(async (code?: string) => {
+    const activeRenderer = rendererRef.current
+    if (!activeRenderer) return
+
+    setSourceState({ status: 'connecting', source: 'spotify', initialTab: 'spotify' })
+    activeRenderer.stopDemo()
+    destroyScPlayer()
+    disconnectPlayer()
+    resetPlaybackState()
+
     try {
-      // 1. Exchange OAuth code for tokens (only on fresh login)
       if (code) await exchangeCodeForTokens(code)
 
-      // 2. Verify Premium — SDK won't connect without it
       const premium = await isPremium()
-      if (!premium) throw new Error('Spotify Premium is required for the Web Playback SDK.')
+      if (!premium) throw new Error('Spotify Premium is required for browser playback.')
 
-      // 3. Capture tab audio for the visualizer
-      await r.startAudio()
-
-      // 4. Load Spotify SDK script + init player (wires player_state_changed → store)
+      await activeRenderer.startAudio()
       await loadSpotifySDK()
       await initPlayer()
 
-      setStage('active')
-    } catch (e) {
-      r.stopAudio()
+      setSourceState({ status: 'active', source: 'spotify', isDemo: false })
+    } catch (error) {
+      activeRenderer.stopAudio()
       disconnectPlayer()
-      setSpotifyError(e instanceof Error ? e.message : 'Spotify connection failed')
-    } finally {
-      setSpotifyLoading(false)
+      setSourceState({
+        status: 'error',
+        source: 'spotify',
+        initialTab: 'spotify',
+        message: errorMessage(error, 'Spotify connection failed. Try reconnecting your account.'),
+      })
     }
-  }
+  }, [resetPlaybackState])
 
-  // ── SoundCloud ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!pendingCode || !renderer) return
+    void startSpotify(pendingCode)
+    setPendingCode(null)
+  }, [pendingCode, renderer, startSpotify])
 
-  const startSoundCloud = async (url: string) => {
-    setScError(null)
-    const r = rendererRef.current
-    if (!r) return
-    r.stopDemo()
+  const startSoundCloud = useCallback(async (url: string) => {
+    const activeRenderer = rendererRef.current
+    if (!activeRenderer) return
+
+    setSourceState({ status: 'connecting', source: 'soundcloud', initialTab: 'soundcloud' })
+    activeRenderer.stopDemo()
     disconnectPlayer()
-    setSpotifyError(null)
-    setIsDemo(false)
-    setTrack(null)
-    setPlaying(false)
+    resetPlaybackState()
+
     try {
-      await r.startAudio()
+      await activeRenderer.startAudio()
       const player = initScPlayer()
       await player.load(url)
       player.on('trackChange', () => { if (player.currentTrack) setTrack(player.currentTrack) })
-      player.on('play',        () => setPlaying(true))
-      player.on('pause',       () => setPlaying(false))
-      player.on('finish',      () => setPlaying(false))
-      player.on('error',       () => {
-        r.stopAudio()
+      player.on('play', () => setPlaying(true))
+      player.on('pause', () => setPlaying(false))
+      player.on('finish', () => setPlaying(false))
+      player.on('error', () => {
+        activeRenderer.stopAudio()
         destroyScPlayer()
-        setScError('SoundCloud playback failed. Try another public track or playlist.')
         setPlaying(false)
-        setStage('soundcloud')
+        setSourceState({
+          status: 'error',
+          source: 'soundcloud',
+          initialTab: 'soundcloud',
+          message: 'SoundCloud playback failed. Try another public track or playlist.',
+        })
       })
       if (player.currentTrack) setTrack(player.currentTrack)
-      setStage('active')
-    } catch (e) {
-      r.stopAudio()
+      setSourceState({ status: 'active', source: 'soundcloud', isDemo: false })
+    } catch (error) {
+      activeRenderer.stopAudio()
       destroyScPlayer()
-      setScError(e instanceof Error ? e.message : 'Something went wrong')
+      setSourceState({
+        status: 'error',
+        source: 'soundcloud',
+        initialTab: 'soundcloud',
+        message: errorMessage(error, 'SoundCloud could not start. Try another public URL.'),
+      })
     }
-  }
+  }, [resetPlaybackState, setPlaying, setTrack])
 
-  // ── Demo ──────────────────────────────────────────────────────────────────
+  const startDemo = useCallback((mode: VisualMode) => {
+    const activeRenderer = rendererRef.current
+    if (!activeRenderer) return
 
-  const startDemo = (mode: VisualMode) => {
-    const r = rendererRef.current
-    if (!r) return
-    r.stopAudio()
+    activeRenderer.stopAudio()
     disconnectPlayer()
     destroyScPlayer()
-    r.startDemo()
+    activeRenderer.startDemo()
     setTrack({
       title: 'Synthetic 120 BPM',
       artist: 'Demo engine',
@@ -164,48 +207,50 @@ export function App() {
     })
     setPlaying(true)
     setDevParams({ visualMode: mode })
-    setIsDemo(true)
-    setStage('active')
+    setSourceState({ status: 'active', source: 'demo', isDemo: true })
+  }, [setDevParams, setPlaying, setTrack])
+
+  const changeSource = useCallback(() => {
+    stopAllSources()
+    setSourceState({ status: 'idle', initialTab: 'soundcloud' })
+  }, [stopAllSources])
+
+  const sharePreset = useCallback(async () => {
+    const query = serializePresetQuery(presetFromDevParams(useStore.getState().devParams))
+    const url = `${window.location.origin}${window.location.pathname}${query}`
+    window.history.replaceState({}, '', `${window.location.pathname}${query}`)
+
+    try {
+      await navigator.clipboard?.writeText(url)
+      setShareLabel('Copied')
+    } catch {
+      setShareLabel('Link ready')
+    }
+  }, [])
+
+  if (!browserReady) {
+    return <BrowserCheck onPass={() => setBrowserReady(true)} />
   }
 
-  // ── Change source ─────────────────────────────────────────────────────────
-
-  const changeSource = () => {
-    rendererRef.current?.stopDemo()
-    rendererRef.current?.stopAudio()
-    disconnectPlayer()
-    destroyScPlayer()
-    setTrack(null)
-    setPlaying(false)
-    setIsDemo(false)
-    setScError(null)
-    setSpotifyError(null)
-    setStage('soundcloud')
-  }
+  const showEntry = isEntryState(sourceState)
+  const isDemo = sourceState.status === 'active' && sourceState.isDemo
 
   return (
     <>
-      {stage !== 'browser' && (
-        <Canvas onRendererReady={onRendererReady} />
-      )}
+      <Canvas onRendererReady={onRendererReady} />
 
-      {stage === 'browser' && <BrowserCheck onPass={() => setStage('soundcloud')} />}
-
-      {stage === 'soundcloud' && (
+      {showEntry && (
         <SoundCloudGate
+          sourceState={sourceState}
           onStart={startSoundCloud}
           onDemo={startDemo}
           onSpotify={() => void startSpotify()}
-          error={scError}
-          spotifyError={spotifyError}
-          spotifyLoading={spotifyLoading}
-          initialTab={pendingCode ? 'spotify' : 'soundcloud'}
         />
       )}
 
-      {stage === 'active' && (
+      {sourceState.status === 'active' && (
         <>
-          <TopBar onChangeSource={changeSource} />
+          <TopBar onChangeSource={changeSource} onSharePreset={() => void sharePreset()} shareLabel={shareLabel} />
           {debugVisible && <DevPanel />}
           <DebugOverlay renderer={renderer} />
           <ModeHUD />

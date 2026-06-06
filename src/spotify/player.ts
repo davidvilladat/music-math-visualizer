@@ -6,7 +6,7 @@ import { useStore } from '../state/store'
 // ── SDK loader ────────────────────────────────────────────────────────────────
 
 let sdkLoaded = false
-const sdkQueue: Array<() => void> = []
+let sdkPromise: Promise<void> | null = null
 
 export function loadSpotifySDK(): Promise<void> {
   if (sdkLoaded || window.Spotify?.Player) {
@@ -14,19 +14,49 @@ export function loadSpotifySDK(): Promise<void> {
     return Promise.resolve()
   }
 
-  return new Promise((resolve) => {
-    sdkQueue.push(resolve)
-    window.onSpotifyWebPlaybackSDKReady = () => {
+  if (sdkPromise) return sdkPromise
+
+  sdkPromise = new Promise((resolve, reject) => {
+    let settled = false
+    let timeout = 0
+
+    const done = () => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeout)
       sdkLoaded = true
-      for (const cb of sdkQueue) cb()
-      sdkQueue.length = 0
+      resolve()
     }
-    if (!document.querySelector('script[src*="spotify-player"]')) {
-      const s = document.createElement('script')
-      s.src = 'https://sdk.scdn.co/spotify-player.js'
-      document.head.appendChild(s)
+
+    const fail = (message: string) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeout)
+      sdkPromise = null
+      reject(new Error(message))
     }
+
+    timeout = window.setTimeout(() => {
+      fail('Spotify Web Playback SDK timed out while loading.')
+    }, 15_000)
+
+    const previousReady = window.onSpotifyWebPlaybackSDKReady
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      previousReady?.()
+      done()
+    }
+
+    let script = document.querySelector<HTMLScriptElement>('script[src*="spotify-player"]')
+    if (!script) {
+      script = document.createElement('script')
+      script.src = 'https://sdk.scdn.co/spotify-player.js'
+      script.async = true
+      document.head.appendChild(script)
+    }
+    script.addEventListener('error', () => fail('Failed to load Spotify Web Playback SDK.'), { once: true })
   })
+
+  return sdkPromise
 }
 
 let playerInstance: SpotifyPlayer | null = null
