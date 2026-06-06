@@ -62,6 +62,60 @@ export const AIRCRAFT_VARIANTS = [
   'Bréguet XIX',
 ] as const
 
+export interface VisualModeMeta {
+  key:    VisualMode
+  label:  string
+  accent: string
+}
+
+// Single source of truth for the visual-mode pickers (TopBar dropdown, demo
+// launcher, dev panel). Order here is the order every picker shows. 'formula'
+// stays first so it remains the natural default/fallback. Previously each UI
+// kept its own list, which diverged — the TopBar list omitted airframe and the
+// core scenes, so those modes were mislabelled and unreachable from the bar.
+export const VISUAL_MODE_META = [
+  { key: 'formula',     label: 'Formula',     accent: '#ff1f1f' },
+  { key: 'feather',     label: 'Feather',     accent: '#f8fafc' },
+  { key: 'pulse',       label: 'Pulse',       accent: '#38bdf8' },
+  { key: 'grid',        label: 'Grid',        accent: '#f97316' },
+  { key: 'orbit',       label: 'Orbit',       accent: '#a3e635' },
+  { key: 'wing',        label: 'Wing',        accent: '#ef4444' },
+  { key: 'bloom',       label: 'Bloom',       accent: '#f472b6' },
+  { key: 'ribbon',      label: 'Ribbon',      accent: '#22d3ee' },
+  { key: 'helix',       label: 'Helix',       accent: '#fde047' },
+  { key: 'field',       label: 'Field',       accent: '#e5e7eb' },
+  { key: 'echo',        label: 'Echo',        accent: '#c084fc' },
+  { key: 'flare',       label: 'Flare',       accent: '#fb7185' },
+  { key: 'surge',       label: 'Surge',       accent: '#ef4444' },
+  { key: 'lyra',        label: 'Lyra',        accent: '#f9a8d4' },
+  { key: 'veil',        label: 'Veil',        accent: '#2dd4bf' },
+  { key: 'ember',       label: 'Ember',       accent: '#fb923c' },
+  { key: 'glint',       label: 'Glint',       accent: '#fef08a' },
+  { key: 'wave',        label: 'Wave',        accent: '#7dd3fc' },
+  { key: 'cyclone',     label: 'Cyclone',     accent: '#fca5a5' },
+  { key: 'lattice',     label: 'Lattice',     accent: '#a7f3d0' },
+  { key: 'petal',       label: 'Petal',       accent: '#f0abfc' },
+  { key: 'comet',       label: 'Comet',       accent: '#ddd6fe' },
+  { key: 'chroma',      label: 'Chroma',      accent: '#67e8f9' },
+  { key: 'attractor',   label: 'Attractor',   accent: '#f4f4f5' },
+  { key: 'prism',       label: 'Prism',       accent: '#c4b5fd' },
+  { key: 'fluid',       label: 'Fluid',       accent: '#3b82f6' },
+  { key: 'streamlines', label: 'Streamlines', accent: '#60a5fa' },
+  { key: 'hybrid',      label: 'Hybrid',      accent: '#14b8a6' },
+  { key: 'electric',    label: 'Electric',    accent: '#a855f7' },
+  { key: 'neon',        label: 'Neon',        accent: '#22c55e' },
+  { key: 'nova',        label: 'Nova',        accent: '#f59e0b' },
+  { key: 'airframe',    label: 'Aviation',    accent: '#0ea5e9' },
+] as const satisfies readonly VisualModeMeta[]
+
+// Compile-time guard: if any VisualMode is missing from VISUAL_MODE_META, the
+// type below resolves to `false` and this assignment fails to compile — so a
+// new mode can never silently drop out of the pickers again.
+const _allModesCovered: Exclude<VisualMode, (typeof VISUAL_MODE_META)[number]['key']> extends never
+  ? true
+  : false = true
+void _allModesCovered
+
 export interface DevParams {
   tauSubBass: number
   tauBass: number
@@ -172,7 +226,7 @@ const DEFAULT_DEV_PARAMS: DevParams = {
   dipoleStrength: 0.08,
   dipoleRadius: 0.2,
   psiDissipation: 0.998,
-  visualMode: 'airframe' as const,
+  visualMode: 'formula' as const,
   reactivity: 'balanced',
   aircraftVariant: 0,
   particleSpeed: 8.0,

@@ -1,14 +1,9 @@
 import { useControls, folder } from 'leva'
-import { useStore, type ReactivityMode, type VisualMode } from '../state/store'
+import { useStore, VISUAL_MODE_META, type ReactivityMode, type VisualMode } from '../state/store'
 import { useEffect } from 'react'
 
 // Full VisualMode list so the dropdown can reach every scene, not just formula.
-const VISUAL_MODES: VisualMode[] = [
-  'fluid', 'streamlines', 'hybrid', 'electric', 'neon', 'nova', 'airframe',
-  'formula', 'feather', 'pulse', 'grid', 'orbit', 'wing', 'bloom', 'ribbon',
-  'helix', 'field', 'echo', 'flare', 'surge', 'lyra', 'veil', 'ember', 'glint',
-  'wave', 'cyclone', 'lattice', 'petal', 'comet', 'chroma', 'attractor', 'prism',
-]
+const VISUAL_MODES: VisualMode[] = VISUAL_MODE_META.map((m) => m.key)
 
 export function DevPanel() {
   const setDevParams = useStore((s) => s.setDevParams)

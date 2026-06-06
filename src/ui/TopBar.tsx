@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useStore } from '../state/store'
+import { useStore, VISUAL_MODE_META } from '../state/store'
 import { getScPlayer } from '../soundcloud/SoundCloudPlayer'
 import { getPlayer } from '../spotify/player'
 import type { DevParams } from '../state/store'
@@ -7,33 +7,7 @@ import type { DevParams } from '../state/store'
 type VisualMode = DevParams['visualMode']
 type Reactivity = DevParams['reactivity']
 
-const MODES: { key: VisualMode; label: string; accent: string }[] = [
-  { key: 'formula', label: 'Formula', accent: '#ff1f1f' },
-  { key: 'feather', label: 'Feather', accent: '#f8fafc' },
-  { key: 'pulse', label: 'Pulse', accent: '#38bdf8' },
-  { key: 'grid', label: 'Grid', accent: '#f97316' },
-  { key: 'orbit', label: 'Orbit', accent: '#a3e635' },
-  { key: 'wing', label: 'Wing', accent: '#ef4444' },
-  { key: 'bloom', label: 'Bloom', accent: '#f472b6' },
-  { key: 'ribbon', label: 'Ribbon', accent: '#22d3ee' },
-  { key: 'helix', label: 'Helix', accent: '#fde047' },
-  { key: 'field', label: 'Field', accent: '#e5e7eb' },
-  { key: 'echo', label: 'Echo', accent: '#c084fc' },
-  { key: 'flare', label: 'Flare', accent: '#fb7185' },
-  { key: 'surge', label: 'Surge', accent: '#ef4444' },
-  { key: 'lyra', label: 'Lyra', accent: '#f9a8d4' },
-  { key: 'veil', label: 'Veil', accent: '#2dd4bf' },
-  { key: 'ember', label: 'Ember', accent: '#fb923c' },
-  { key: 'glint', label: 'Glint', accent: '#fef08a' },
-  { key: 'wave', label: 'Wave', accent: '#7dd3fc' },
-  { key: 'cyclone', label: 'Cyclone', accent: '#fca5a5' },
-  { key: 'lattice', label: 'Lattice', accent: '#a7f3d0' },
-  { key: 'petal', label: 'Petal', accent: '#f0abfc' },
-  { key: 'comet', label: 'Comet', accent: '#ddd6fe' },
-  { key: 'chroma', label: 'Chroma', accent: '#67e8f9' },
-  { key: 'attractor', label: 'Attractor', accent: '#f4f4f5' },
-  { key: 'prism', label: 'Prism', accent: '#c4b5fd' },
-]
+const MODES = VISUAL_MODE_META
 
 const REACTIVITY: { key: Reactivity; label: string }[] = [
   { key: 'steady', label: 'Steady' },

@@ -1,38 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { getAccessToken, redirectToLogin } from '../auth/authService'
-import type { DevParams } from '../state/store'
+import { VISUAL_MODE_META, type DevParams } from '../state/store'
 
 type VisualMode = DevParams['visualMode']
 type Tab = 'soundcloud' | 'spotify' | 'demo'
 
-const MODES: { key: VisualMode; label: string }[] = [
-  { key: 'airframe', label: 'Aviation' },
-  { key: 'formula', label: 'Formula' },
-  { key: 'feather', label: 'Feather' },
-  { key: 'pulse', label: 'Pulse' },
-  { key: 'grid', label: 'Grid' },
-  { key: 'orbit', label: 'Orbit' },
-  { key: 'wing', label: 'Wing' },
-  { key: 'bloom', label: 'Bloom' },
-  { key: 'ribbon', label: 'Ribbon' },
-  { key: 'helix', label: 'Helix' },
-  { key: 'field', label: 'Field' },
-  { key: 'echo', label: 'Echo' },
-  { key: 'flare', label: 'Flare' },
-  { key: 'surge', label: 'Surge' },
-  { key: 'lyra', label: 'Lyra' },
-  { key: 'veil', label: 'Veil' },
-  { key: 'ember', label: 'Ember' },
-  { key: 'glint', label: 'Glint' },
-  { key: 'wave', label: 'Wave' },
-  { key: 'cyclone', label: 'Cyclone' },
-  { key: 'lattice', label: 'Lattice' },
-  { key: 'petal', label: 'Petal' },
-  { key: 'comet', label: 'Comet' },
-  { key: 'chroma', label: 'Chroma' },
-  { key: 'attractor', label: 'Attractor' },
-  { key: 'prism', label: 'Prism' },
-]
+const MODES = VISUAL_MODE_META
 
 interface Props {
   onStart:        (url: string) => Promise<void>
@@ -63,7 +36,7 @@ export function SoundCloudGate({
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [validErr, setValidErr] = useState<string | null>(null)
-  const [demoMode, setDemoMode] = useState<VisualMode>('airframe')
+  const [demoMode, setDemoMode] = useState<VisualMode>('formula')
 
   const isSpotifyAuthed = !!getAccessToken()
   const anyScError = validErr ?? (tab === 'soundcloud' ? error : null)
