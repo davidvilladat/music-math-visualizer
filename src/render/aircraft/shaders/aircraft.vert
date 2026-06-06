@@ -1,3 +1,12 @@
+// AIRCRAFT_VARIANT selects, at compile time, which single per-variant sampler is
+// referenced (see sampleAircraft). AircraftScene prepends a `#define` per
+// variant; the guard keeps the shader valid if used without one. Gating to one
+// sampler is what keeps the ANGLE/D3D11 link ~2s instead of ~3min — inlining all
+// 12 samplers into one program triggers a superlinear FXC compile blowup.
+#ifndef AIRCRAFT_VARIANT
+#define AIRCRAFT_VARIANT 0
+#endif
+
 precision highp float;
 
 attribute float aIndex;
@@ -2448,54 +2457,37 @@ vec3 soyuzSample(float raw, out float alpha, out float glow) {
   return vec3(0.0);
 }
 
+// Each compiled program references exactly ONE sampler (selected by
+// AIRCRAFT_VARIANT). The other variants' samplers — and the generic S_* front-
+// view fall-through, which integer variants never reached anyway — become
+// unreferenced and are dropped by dead-code elimination before the expensive
+// ANGLE link. AircraftScene compiles a separate program per variant on demand.
 vec3 sampleAircraft(float raw, out float alpha, out float glow) {
-  if (isReferenceA380Profile()) return referenceA380Sample(raw, alpha, glow);
-  if (isA350Profile()) return a350Sample(raw, alpha, glow);
-  if (isStructuralProfile()) return a380StructuralSample(raw, alpha, glow);
-  if (isGeneralA380Profile()) return a380AeroSample(raw, alpha, glow);
-  if (isWingBoxProfile()) return wingBoxSample(raw, alpha, glow);
-  if (isConcordeProfile()) return concordeSample(raw, alpha, glow);
-  if (isB747Profile()) return b747Sample(raw, alpha, glow);
-  if (isMirageProfile()) return mirageSample(raw, alpha, glow);
-  if (isRafaleProfile()) return rafaleSample(raw, alpha, glow);
-  if (isBreguetProfile()) return breguetSample(raw, alpha, glow);
-  if (isAriane5Profile()) return ariane5Sample(raw, alpha, glow);
-  if (isSoyuzProfile()) return soyuzSample(raw, alpha, glow);
-  float x = raw;
-  if (x < S_FUSELAGE) return fuselageSample(x, alpha, glow);
-  x -= S_FUSELAGE;
-  if (x < S_OUTLINE) return outlineSample(x, alpha, glow);
-  x -= S_OUTLINE;
-  if (x < S_NOSE) return noseSample(x, alpha, glow);
-  x -= S_NOSE;
-  if (x < S_COCKPIT) return cockpitSample(x, alpha, glow);
-  x -= S_COCKPIT;
-  if (x < S_WINDOWS) return windowSample(x, alpha, glow);
-  x -= S_WINDOWS;
-  if (x < S_DOORS) return doorSample(x, alpha, glow);
-  x -= S_DOORS;
-  if (x < S_WINGS) return wingSurfaceSample(x, alpha, glow);
-  x -= S_WINGS;
-  if (x < S_WING_DETAIL) return wingDetailSample(x, alpha, glow);
-  x -= S_WING_DETAIL;
-  if (x < S_SHARKLETS) return sharkletSample(x, alpha, glow);
-  x -= S_SHARKLETS;
-  if (x < S_ENGINES) return engineSample(x, alpha, glow);
-  x -= S_ENGINES;
-  if (x < S_TAILPLANE) return tailplaneSurfaceSample(x, alpha, glow);
-  x -= S_TAILPLANE;
-  if (x < S_TAIL_DETAIL) return tailplaneDetailSample(x, alpha, glow);
-  x -= S_TAIL_DETAIL;
-  if (x < S_VERTICAL) return verticalSample(x, alpha, glow);
-  x -= S_VERTICAL;
-  if (x < S_VERTICAL_DETAIL) return verticalDetailSample(x, alpha, glow);
-  x -= S_VERTICAL_DETAIL;
-  if (x < S_AFT) return aftSample(x, alpha, glow);
-  x -= S_AFT;
-  if (x < S_PANELS) return panelSample(x, alpha, glow);
-  alpha = 0.0;
-  glow = 0.0;
-  return vec3(0.0);
+#if AIRCRAFT_VARIANT == 1
+  return a350Sample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 2
+  return a380AeroSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 3
+  return a380StructuralSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 4
+  return wingBoxSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 5
+  return concordeSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 6
+  return b747Sample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 7
+  return mirageSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 8
+  return rafaleSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 9
+  return breguetSample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 10
+  return ariane5Sample(raw, alpha, glow);
+#elif AIRCRAFT_VARIANT == 11
+  return soyuzSample(raw, alpha, glow);
+#else
+  return referenceA380Sample(raw, alpha, glow);
+#endif
 }
 
 void main() {

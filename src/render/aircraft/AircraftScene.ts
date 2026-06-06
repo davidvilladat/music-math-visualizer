@@ -14,17 +14,33 @@ export interface AircraftDevParams {
 const POINT_COUNT = 90_000
 const T_RATE = Math.PI / 90 * 60
 
+// All 12 per-variant samplers inlined into one program take ~3 minutes to link
+// on ANGLE/D3D11 (a superlinear FXC blowup), which froze the tab when switching
+// to aviation. Instead we compile one program per variant — gated by a
+// `#define AIRCRAFT_VARIANT` so only that variant's sampler survives dead-code
+// elimination — which links in ~2s. Programs are built lazily on first use and
+// compiled asynchronously (KHR_parallel_shader_compile when available) so the
+// switch never blocks the main thread; we render the variant only once ready.
 export class AircraftScene {
   private gl: THREE.WebGLRenderer
-  private scene = new THREE.Scene()
   private camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   private geo: THREE.BufferGeometry
-  private mat: THREE.RawShaderMaterial
+  private w: number
+  private h: number
+
+  private scenes      = new Map<number, THREE.Scene>()
+  private materials   = new Map<number, THREE.RawShaderMaterial>()
+  private ready       = new Set<number>()
+  private compiling   = new Set<number>()
+  private current     = 0
+
   private time = 0
   private motionRate = 1
 
   constructor(gl: THREE.WebGLRenderer, w: number, h: number) {
     this.gl = gl
+    this.w = w
+    this.h = h
 
     const indices = new Float32Array(POINT_COUNT)
     for (let i = 0; i < POINT_COUNT; i++) indices[i] = i
@@ -33,32 +49,62 @@ export class AircraftScene {
     this.geo = new THREE.BufferGeometry()
     this.geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     this.geo.setAttribute('aIndex', new THREE.BufferAttribute(indices, 1))
+  }
 
-    this.mat = new THREE.RawShaderMaterial({
-      vertexShader: aircraftVert,
-      fragmentShader: aircraftFrag,
-      uniforms: {
-        uTime: { value: 0 },
-        uVariant: { value: 0 },
-        uBass: { value: 0 },
-        uMid: { value: 0 },
-        uBrilliance: { value: 0 },
-        uFlux: { value: 0 },
-        uBeatPulse: { value: 0 },
-        uRms: { value: 0 },
-        uReactivity: { value: 1 },
-        uResolution: { value: new THREE.Vector2(w, h) },
-      },
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-    })
+  private materialFor(variant: number): THREE.RawShaderMaterial {
+    let mat = this.materials.get(variant)
+    if (!mat) {
+      mat = new THREE.RawShaderMaterial({
+        vertexShader: `#define AIRCRAFT_VARIANT ${variant}\n${aircraftVert}`,
+        fragmentShader: aircraftFrag,
+        uniforms: {
+          uTime: { value: 0 },
+          uVariant: { value: variant },
+          uBass: { value: 0 },
+          uMid: { value: 0 },
+          uBrilliance: { value: 0 },
+          uFlux: { value: 0 },
+          uBeatPulse: { value: 0 },
+          uRms: { value: 0 },
+          uReactivity: { value: 1 },
+          uResolution: { value: new THREE.Vector2(this.w, this.h) },
+        },
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      })
+      this.materials.set(variant, mat)
+    }
+    return mat
+  }
 
-    this.scene.add(new THREE.Points(this.geo, this.mat))
+  private sceneFor(variant: number): THREE.Scene {
+    let scene = this.scenes.get(variant)
+    if (!scene) {
+      const points = new THREE.Points(this.geo, this.materialFor(variant))
+      points.frustumCulled = false
+      scene = new THREE.Scene()
+      scene.add(points)
+      this.scenes.set(variant, scene)
+    }
+    return scene
+  }
+
+  // Kick off an async compile for a variant's program (once). compileAsync uses
+  // parallel shader compile when supported, so the ~2s link runs off-thread.
+  private ensureCompiled(variant: number): void {
+    if (this.ready.has(variant) || this.compiling.has(variant)) return
+    this.compiling.add(variant)
+    const scene = this.sceneFor(variant)
+    const done = () => { this.ready.add(variant); this.compiling.delete(variant) }
+    this.gl.compileAsync(scene, this.camera).then(done, done)
   }
 
   update(dt: number, features: AudioFeatures, cfg: AircraftDevParams): void {
+    this.current = cfg.variant
+    this.ensureCompiled(cfg.variant)
+
     const bpmRate = features.bpm && features.bpmConfidence > 0.25
       ? Math.max(0.5, Math.min(1.65, features.bpm / 120))
       : 1
@@ -69,7 +115,7 @@ export class AircraftScene {
     this.motionRate += (targetRate - this.motionRate) * follow
     this.time += dt * T_RATE * cfg.speed * this.motionRate
 
-    const u = this.mat.uniforms
+    const u = this.materialFor(cfg.variant).uniforms
     u.uTime.value = this.time
     u.uVariant.value = cfg.variant
     u.uBass.value = features.bass
@@ -85,18 +131,28 @@ export class AircraftScene {
     this.gl.setRenderTarget(target)
     this.gl.setClearColor(0x060606, 1)
     this.gl.clear(true, false, false)
-    this.gl.autoClear = false
-    this.gl.render(this.scene, this.camera)
-    this.gl.autoClear = true
+    // Until the active variant's program has finished compiling, show the cleared
+    // background rather than blocking on a synchronous link.
+    if (this.ready.has(this.current)) {
+      this.gl.autoClear = false
+      this.gl.render(this.sceneFor(this.current), this.camera)
+      this.gl.autoClear = true
+    }
     this.gl.setRenderTarget(null)
   }
 
   resize(w: number, h: number): void {
-    this.mat.uniforms.uResolution.value.set(w, h)
+    this.w = w
+    this.h = h
+    this.materials.forEach((mat) => mat.uniforms.uResolution.value.set(w, h))
   }
 
   dispose(): void {
     this.geo.dispose()
-    this.mat.dispose()
+    this.materials.forEach((mat) => mat.dispose())
+    this.materials.clear()
+    this.scenes.clear()
+    this.ready.clear()
+    this.compiling.clear()
   }
 }
