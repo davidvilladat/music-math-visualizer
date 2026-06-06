@@ -32,6 +32,7 @@ export class AircraftScene {
   private materials   = new Map<number, THREE.RawShaderMaterial>()
   private ready       = new Set<number>()
   private compiling   = new Set<number>()
+  private failed      = new Set<number>()
   private current     = 0
 
   private time = 0
@@ -91,14 +92,47 @@ export class AircraftScene {
     return scene
   }
 
+  preloadVariant(variant: number): Promise<'ready' | 'failed'> {
+    return this.ensureCompiled(variant)
+  }
+
+  getVariantStatus(variant = this.current): 'ready' | 'compiling' | 'failed' | 'idle' {
+    if (this.ready.has(variant)) return 'ready'
+    if (this.failed.has(variant)) return 'failed'
+    if (this.compiling.has(variant)) return 'compiling'
+    return 'idle'
+  }
+
   // Kick off an async compile for a variant's program (once). compileAsync uses
   // parallel shader compile when supported, so the ~2s link runs off-thread.
-  private ensureCompiled(variant: number): void {
-    if (this.ready.has(variant) || this.compiling.has(variant)) return
+  private ensureCompiled(variant: number): Promise<'ready' | 'failed'> {
+    if (this.ready.has(variant)) return Promise.resolve('ready')
+    if (this.failed.has(variant)) return Promise.resolve('failed')
+    if (this.compiling.has(variant)) {
+      return new Promise((resolve) => {
+        const check = () => {
+          const status = this.getVariantStatus(variant)
+          if (status === 'ready' || status === 'failed') resolve(status)
+          else window.setTimeout(check, 100)
+        }
+        check()
+      })
+    }
     this.compiling.add(variant)
     const scene = this.sceneFor(variant)
-    const done = () => { this.ready.add(variant); this.compiling.delete(variant) }
-    this.gl.compileAsync(scene, this.camera).then(done, done)
+    return this.gl.compileAsync(scene, this.camera)
+      .then(() => {
+        this.ready.add(variant)
+        this.failed.delete(variant)
+        return 'ready' as const
+      })
+      .catch(() => {
+        this.failed.add(variant)
+        return 'failed' as const
+      })
+      .finally(() => {
+        this.compiling.delete(variant)
+      })
   }
 
   update(dt: number, features: AudioFeatures, cfg: AircraftDevParams): void {
@@ -154,5 +188,6 @@ export class AircraftScene {
     this.scenes.clear()
     this.ready.clear()
     this.compiling.clear()
+    this.failed.clear()
   }
 }

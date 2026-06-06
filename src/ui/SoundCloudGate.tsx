@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { getAccessToken, redirectToLogin } from '../auth/authService'
-import { VISUAL_MODE_META, type DevParams } from '../state/store'
+import { VISUAL_MODE_META, useStore, type DevParams } from '../state/store'
 import type { SourceState, SourceTab } from '../state/sourceState'
 
 type VisualMode = DevParams['visualMode']
@@ -32,7 +32,9 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
   const [tab, setTab] = useState<SourceTab>(initialTabFor(sourceState))
   const [url, setUrl] = useState('')
   const [validErr, setValidErr] = useState<string | null>(null)
-  const [demoMode, setDemoMode] = useState<VisualMode>('formula')
+  const storedVisualMode = useStore((state) => state.devParams.visualMode)
+  const [demoMode, setDemoMode] = useState<VisualMode>(storedVisualMode)
+  const [demoTouched, setDemoTouched] = useState(false)
 
   const isSpotifyAuthed = !!getAccessToken()
   const connectingSource = sourceState.status === 'connecting' ? sourceState.source : null
@@ -46,6 +48,10 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
   useEffect(() => {
     setTab(initialTabFor(sourceState))
   }, [sourceState])
+
+  useEffect(() => {
+    if (!demoTouched) setDemoMode(storedVisualMode)
+  }, [demoTouched, storedVisualMode])
 
   const handleScSubmit = async () => {
     const trimmed = url.trim()
@@ -116,7 +122,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
               </button>
               <button
                 type="button"
-                onClick={() => onDemo('formula')}
+                onClick={() => onDemo(demoMode)}
                 style={secondaryButton}
                 data-testid="launch-demo"
               >
@@ -171,7 +177,10 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
               <select
                 id="demo-mode"
                 value={demoMode}
-                onChange={(event) => setDemoMode(event.target.value as VisualMode)}
+                onChange={(event) => {
+                  setDemoTouched(true)
+                  setDemoMode(event.target.value as VisualMode)
+                }}
                 style={select}
               >
                 {MODES.map((mode) => (

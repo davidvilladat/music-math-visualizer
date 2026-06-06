@@ -70,6 +70,7 @@ export class Renderer {
   private fpsLastTime = performance.now()
   fps = 0
   private lastMathMode: FormulaMode = 'formula'
+  private destroyed = false
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
@@ -96,6 +97,7 @@ export class Renderer {
     this.bindMouse(canvas)
     window.addEventListener('resize', this.onResize)
     window.addEventListener('keydown', this.onKeyDown)
+    void this.preloadAircraftVariants()
   }
 
   async startAudio(): Promise<void> {
@@ -120,6 +122,10 @@ export class Renderer {
 
   get isDemoMode(): boolean { return this.demo !== null }
 
+  getAircraftVariantStatus(variant?: number): 'ready' | 'compiling' | 'failed' | 'idle' {
+    return this.aircraft.getVariantStatus(variant)
+  }
+
   startLoop(): void {
     if (this.running) return
     this.running = true
@@ -133,6 +139,7 @@ export class Renderer {
   }
 
   destroy(): void {
+    this.destroyed = true
     this.stopLoop()
     this.engine.setOnEnded(null)
     this.engine.stop()
@@ -332,6 +339,15 @@ export class Renderer {
     })
 
     this.rafId = requestAnimationFrame(this.loop)
+  }
+
+  private async preloadAircraftVariants(): Promise<void> {
+    const order = [0, ...AIRCRAFT_VARIANTS.map((_, index) => index).filter((index) => index !== 0)]
+    for (const variant of order) {
+      if (this.destroyed) return
+      await this.aircraft.preloadVariant(variant)
+      await new Promise((resolve) => window.setTimeout(resolve, 150))
+    }
   }
 
   private onResize = (): void => {

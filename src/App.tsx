@@ -254,7 +254,7 @@ export function App() {
           {debugVisible && <DevPanel />}
           <DebugOverlay renderer={renderer} />
           <ModeHUD />
-          <AircraftHUD />
+          <AircraftHUD renderer={renderer} />
           {isDemo && <DemoBanner />}
         </>
       )}
