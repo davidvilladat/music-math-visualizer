@@ -50,8 +50,40 @@ test('launches aviation mode from a shared preset', async ({ page }) => {
   await page.getByTestId('launch-demo').click()
 
   await expect(page.getByTestId('visualizer-canvas')).toBeVisible()
-  await expect(page.getByText('A350 XWB')).toBeVisible()
-  await expect(page.getByText(/LOADING|READY/)).toBeVisible()
+  await expect(page.getByTestId('aircraft-variant-name')).toHaveText('A350 XWB')
+  await expect(page.getByTestId('aircraft-hud').getByText(/LOADING|READY/)).toBeVisible()
+
+  expect(consoleErrors).toEqual([])
+})
+
+test('launches aviation demo and switches aircraft variants', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
+  await page.addInitScript(() => {
+    const existing = navigator.mediaDevices ?? {}
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        ...existing,
+        getDisplayMedia: async () => new MediaStream(),
+      },
+    })
+  })
+
+  await page.goto('/')
+  await page.getByTestId('launch-aviation-demo').click()
+
+  await expect(page.getByTestId('visualizer-canvas')).toBeVisible()
+  await expect(page.getByLabel('Aircraft variant')).toBeVisible()
+  await expect(page.getByTestId('aircraft-variant-name')).toHaveText('A350 XWB')
+  await expect(page.getByTestId('aircraft-hud').getByText(/LOADING|READY/)).toBeVisible()
+
+  await page.getByLabel('Aircraft variant').selectOption('5')
+  await expect(page.getByTestId('aircraft-variant-name')).toHaveText('Concorde')
+  await expect(page.getByTestId('aircraft-preload-progress')).toHaveText(/\/10/)
 
   expect(consoleErrors).toEqual([])
 })

@@ -8,7 +8,7 @@ import { ElectricScene } from './electric/ElectricScene'
 import { NeonScene } from './neon/NeonScene'
 import { NovaScene } from './nova/NovaScene'
 import { FormulaScene } from './formula/FormulaScene'
-import { AircraftScene } from './aircraft/AircraftScene'
+import { AircraftScene, type AircraftPreloadProgress, type AircraftVariantStatus } from './aircraft/AircraftScene'
 import { AudioEngine } from '../audio/audioEngine'
 import { DemoEngine } from '../audio/DemoEngine'
 import { makeAudioFeatures, type AudioFeatures } from '../audio/audioFeatures'
@@ -122,8 +122,12 @@ export class Renderer {
 
   get isDemoMode(): boolean { return this.demo !== null }
 
-  getAircraftVariantStatus(variant?: number): 'ready' | 'compiling' | 'failed' | 'idle' {
+  getAircraftVariantStatus(variant?: number): AircraftVariantStatus {
     return this.aircraft.getVariantStatus(variant)
+  }
+
+  getAircraftPreloadProgress(): AircraftPreloadProgress {
+    return this.aircraft.getPreloadProgress(AIRCRAFT_VARIANTS.length)
   }
 
   startLoop(): void {

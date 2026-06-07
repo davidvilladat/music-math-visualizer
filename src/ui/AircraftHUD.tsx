@@ -7,15 +7,34 @@ interface Props {
 }
 
 type AircraftStatus = 'ready' | 'compiling' | 'failed' | 'idle'
+type PreloadProgress = {
+  ready: number
+  compiling: number
+  failed: number
+  total: number
+  percent: number
+}
+
+const EMPTY_PROGRESS: PreloadProgress = {
+  ready: 0,
+  compiling: 0,
+  failed: 0,
+  total: AIRCRAFT_VARIANTS.length,
+  percent: 0,
+}
 
 export function AircraftHUD({ renderer }: Props) {
   const mode = useStore((state) => state.devParams.visualMode)
   const variant = useStore((state) => state.devParams.aircraftVariant)
   const [status, setStatus] = useState<AircraftStatus>('idle')
+  const [progress, setProgress] = useState<PreloadProgress>(EMPTY_PROGRESS)
 
   useEffect(() => {
     if (mode !== 'airframe' || !renderer) return
-    const update = () => setStatus(renderer.getAircraftVariantStatus(variant))
+    const update = () => {
+      setStatus(renderer.getAircraftVariantStatus(variant))
+      setProgress(renderer.getAircraftPreloadProgress())
+    }
     update()
     const id = window.setInterval(update, 250)
     return () => window.clearInterval(id)
@@ -28,12 +47,15 @@ export function AircraftHUD({ renderer }: Props) {
   const statusLabel = status === 'ready' ? 'READY' : status === 'failed' ? 'FAILED' : 'LOADING'
 
   return (
-    <div style={badge}>
+    <div style={badge} data-testid="aircraft-hud">
       <span style={idx}>{String(variant + 1).padStart(2, '0')}/{count}</span>
       <span style={sep}>-</span>
-      <span style={label}>{name}</span>
+      <span style={label} data-testid="aircraft-variant-name">{name}</span>
       <span style={{ ...statePill, ...(status === 'ready' ? readyPill : status === 'failed' ? failedPill : loadingPill) }}>
         {statusLabel}
+      </span>
+      <span style={progressPill} data-testid="aircraft-preload-progress">
+        {progress.ready}/{progress.total}
       </span>
       <span style={hint}>P</span>
     </div>
@@ -87,6 +109,21 @@ const statePill: CSSProperties = {
   fontSize: 9,
   fontWeight: 800,
   letterSpacing: '0.08em',
+}
+
+const progressPill: CSSProperties = {
+  minWidth: 34,
+  height: 16,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 4,
+  border: '1px solid rgba(255,255,255,0.12)',
+  background: 'rgba(255,255,255,0.06)',
+  color: 'rgba(255,255,255,0.55)',
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: '0.05em',
 }
 
 const readyPill: CSSProperties = {

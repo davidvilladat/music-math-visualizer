@@ -11,6 +11,16 @@ export interface AircraftDevParams {
   reactivity: number
 }
 
+export type AircraftVariantStatus = 'ready' | 'compiling' | 'failed' | 'idle'
+
+export interface AircraftPreloadProgress {
+  ready: number
+  compiling: number
+  failed: number
+  total: number
+  percent: number
+}
+
 const POINT_COUNT = 90_000
 const T_RATE = Math.PI / 90 * 60
 
@@ -96,11 +106,21 @@ export class AircraftScene {
     return this.ensureCompiled(variant)
   }
 
-  getVariantStatus(variant = this.current): 'ready' | 'compiling' | 'failed' | 'idle' {
+  getVariantStatus(variant = this.current): AircraftVariantStatus {
     if (this.ready.has(variant)) return 'ready'
     if (this.failed.has(variant)) return 'failed'
     if (this.compiling.has(variant)) return 'compiling'
     return 'idle'
+  }
+
+  getPreloadProgress(total: number): AircraftPreloadProgress {
+    return {
+      ready: this.ready.size,
+      compiling: this.compiling.size,
+      failed: this.failed.size,
+      total,
+      percent: total > 0 ? Math.round((this.ready.size / total) * 100) : 0,
+    }
   }
 
   // Kick off an async compile for a variant's program (once). compileAsync uses

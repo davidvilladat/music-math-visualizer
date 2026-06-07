@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useStore, VISUAL_MODE_META } from '../state/store'
+import { AIRCRAFT_VARIANTS, useStore, VISUAL_MODE_META } from '../state/store'
 import { getScPlayer } from '../soundcloud/SoundCloudPlayer'
 import { getPlayer } from '../spotify/player'
 import type { DevParams } from '../state/store'
@@ -28,6 +28,7 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
   const isPlaying = useStore((s) => s.isPlaying)
   const visualMode = useStore((s) => s.devParams.visualMode)
   const reactivity = useStore((s) => s.devParams.reactivity)
+  const aircraftVariant = useStore((s) => s.devParams.aircraftVariant)
   const setDevParams = useStore((s) => s.setDevParams)
 
   const [visible, setVisible] = useState(true)
@@ -119,6 +120,21 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
             </option>
           ))}
         </select>
+
+        {visualMode === 'airframe' && (
+          <select
+            aria-label="Aircraft variant"
+            value={aircraftVariant}
+            onChange={(e) => setDevParams({ aircraftVariant: Number(e.target.value) })}
+            style={aircraftSelect}
+          >
+            {AIRCRAFT_VARIANTS.map((name, index) => (
+              <option key={name} value={index} style={{ background: '#070707', color: '#dbeafe' }}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           aria-label="Reactivity"
@@ -301,4 +317,12 @@ const reactivitySelect: CSSProperties = {
   borderColor: 'rgba(255,255,255,0.14)',
   color: 'rgba(255,255,255,0.74)',
   background: 'rgba(255,255,255,0.06)',
+}
+
+const aircraftSelect: CSSProperties = {
+  ...modeSelect,
+  maxWidth: 176,
+  borderColor: 'rgba(14,165,233,0.26)',
+  color: 'rgba(191,219,254,0.92)',
+  background: 'rgba(14,165,233,0.10)',
 }

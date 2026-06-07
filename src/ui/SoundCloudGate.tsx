@@ -33,6 +33,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
   const [url, setUrl] = useState('')
   const [validErr, setValidErr] = useState<string | null>(null)
   const storedVisualMode = useStore((state) => state.devParams.visualMode)
+  const setDevParams = useStore((state) => state.setDevParams)
   const [demoMode, setDemoMode] = useState<VisualMode>(storedVisualMode)
   const [demoTouched, setDemoTouched] = useState(false)
 
@@ -63,6 +64,11 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
 
     setValidErr(null)
     await onStart(trimmed)
+  }
+
+  const launchDemo = (mode: VisualMode, aircraftVariant?: number) => {
+    if (aircraftVariant !== undefined) setDevParams({ aircraftVariant })
+    onDemo(mode)
   }
 
   return (
@@ -122,11 +128,19 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
               </button>
               <button
                 type="button"
-                onClick={() => onDemo(demoMode)}
+                onClick={() => launchDemo(demoMode)}
                 style={secondaryButton}
                 data-testid="launch-demo"
               >
                 Start Demo
+              </button>
+              <button
+                type="button"
+                onClick={() => launchDemo('airframe', 1)}
+                style={aviationButton}
+                data-testid="launch-aviation-demo"
+              >
+                Aviation Demo
               </button>
               <p style={note}>When Chrome opens the share dialog, choose this tab and enable "Share tab audio".</p>
             </>
@@ -189,12 +203,23 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
               </select>
               <button
                 type="button"
-                onClick={() => onDemo(demoMode)}
+                onClick={() => launchDemo(demoMode)}
                 style={primaryButton}
                 data-testid="launch-demo-selected"
               >
                 Launch Demo
               </button>
+              <div style={quickDemoRow}>
+                <button type="button" onClick={() => launchDemo('formula')} style={miniDemoButton}>
+                  Formula
+                </button>
+                <button type="button" onClick={() => launchDemo('airframe', 1)} style={miniDemoButton}>
+                  Aviation
+                </button>
+                <button type="button" onClick={() => launchDemo('neon')} style={miniDemoButton}>
+                  Neon
+                </button>
+              </div>
               <p style={note}>Synthetic audio only. No login or capture prompt.</p>
             </>
           )}
@@ -326,6 +351,31 @@ const secondaryButton: CSSProperties = {
   ...primaryButton,
   background: 'transparent',
   color: 'rgba(255,255,255,0.58)',
+}
+
+const aviationButton: CSSProperties = {
+  ...secondaryButton,
+  borderColor: 'rgba(14,165,233,0.24)',
+  color: 'rgba(191,219,254,0.9)',
+  background: 'rgba(14,165,233,0.08)',
+}
+
+const quickDemoRow: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 8,
+}
+
+const miniDemoButton: CSSProperties = {
+  minHeight: 34,
+  border: '1px solid rgba(255,255,255,0.12)',
+  borderRadius: 7,
+  background: 'rgba(255,255,255,0.05)',
+  color: 'rgba(255,255,255,0.66)',
+  fontFamily: 'var(--font-ui)',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
 }
 
 const mutedText: CSSProperties = {
