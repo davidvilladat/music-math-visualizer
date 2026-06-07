@@ -14,7 +14,9 @@ export interface SCWidget {
   pause(): void
   next(): void
   prev(): void
+  seekTo(ms: number): void
   getCurrentSound(cb: (sound: SCSound) => void): void
+  getDuration(cb: (ms: number) => void): void
   getPosition(cb: (ms: number) => void): void
   isPaused(cb: (paused: boolean) => void): void
   load(url: string, options?: Record<string, unknown>): void

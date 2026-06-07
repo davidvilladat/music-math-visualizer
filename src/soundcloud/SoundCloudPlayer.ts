@@ -99,6 +99,26 @@ export class SoundCloudPlayer {
   pause(): void { this.widget?.pause() }
   next():  void { this.widget?.next() }
   prev():  void { this.widget?.prev() }
+  seekTo(ms: number): void {
+    if (!this.widget) return
+    const duration = this.currentTrack?.duration ?? 0
+    const bounded = duration > 0 ? Math.min(ms, duration) : ms
+    this.widget.seekTo(Math.max(0, Math.floor(bounded)))
+  }
+
+  getPosition(): Promise<number> {
+    return new Promise((resolve) => {
+      if (!this.widget) resolve(0)
+      else this.widget.getPosition((ms) => resolve(ms))
+    })
+  }
+
+  getDuration(): Promise<number> {
+    return new Promise((resolve) => {
+      if (!this.widget) resolve(this.currentTrack?.duration ?? 0)
+      else this.widget.getDuration((ms) => resolve(ms))
+    })
+  }
 
   on(event: SCEvent, cb: () => void):  void {
     if (!this.cbs.has(event)) this.cbs.set(event, new Set())

@@ -17,6 +17,29 @@ const REACTIVITY: { key: Reactivity; label: string }[] = [
   { key: 'frenetic', label: 'Frenetic' },
 ]
 
+function formatTime(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${minutes}:${pad(seconds)}`
+}
+
+function parseSeekValue(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (/^\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed) * 60_000
+
+  const parts = trimmed.split(':').map((part) => Number(part))
+  if (parts.some((part) => !Number.isFinite(part) || part < 0)) return null
+  if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000
+  if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000
+  return null
+}
+
 interface Props {
   onChangeSource?: () => void
   onSharePreset?: () => void
@@ -32,6 +55,9 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
   const setDevParams = useStore((s) => s.setDevParams)
 
   const [visible, setVisible] = useState(true)
+  const [positionMs, setPositionMs] = useState(0)
+  const [durationMs, setDurationMs] = useState(0)
+  const [seekValue, setSeekValue] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
   const resetTimer = useCallback(() => {
@@ -54,8 +80,36 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
   const scPlayer = getScPlayer()
   const spotifyPlayer = getPlayer()
   const hasTransport = Boolean(scPlayer || spotifyPlayer)
+  const soundCloudDuration = durationMs || track?.duration || 0
+  const canSeekSoundCloud = Boolean(scPlayer)
   const art = track?.artworkUrl
   const activeMode = MODES.find((mode) => mode.key === visualMode) ?? MODES[0]
+
+  useEffect(() => {
+    if (!scPlayer) {
+      setPositionMs(0)
+      setDurationMs(0)
+      setSeekValue('')
+      return
+    }
+
+    let active = true
+    const syncPosition = () => {
+      void scPlayer.getPosition().then((ms) => {
+        if (active) setPositionMs(ms)
+      })
+      void scPlayer.getDuration().then((ms) => {
+        if (active && Number.isFinite(ms)) setDurationMs(ms)
+      })
+    }
+
+    syncPosition()
+    const id = window.setInterval(syncPosition, isPlaying ? 1000 : 2500)
+    return () => {
+      active = false
+      window.clearInterval(id)
+    }
+  }, [isPlaying, scPlayer, track?.artist, track?.title])
 
   const prevTrack = () => {
     if (spotifyPlayer) void spotifyPlayer.previousTrack()
@@ -71,6 +125,16 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
   const nextTrack = () => {
     if (spotifyPlayer) void spotifyPlayer.nextTrack()
     else scPlayer?.next()
+  }
+
+  const seekSoundCloud = () => {
+    if (!scPlayer) return
+    const parsed = parseSeekValue(seekValue)
+    if (parsed === null) return
+    const target = soundCloudDuration > 0 ? Math.min(parsed, soundCloudDuration) : parsed
+    scPlayer.seekTo(target)
+    setPositionMs(target)
+    setSeekValue('')
   }
 
   return (
@@ -96,6 +160,38 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
         <button onClick={nextTrack} disabled={!hasTransport} style={iconButton} title="Next">
           <NextIcon />
         </button>
+        {canSeekSoundCloud && (
+          <div style={seekControls} data-testid="soundcloud-seek">
+            <span style={timeLabel}>{formatTime(positionMs)}</span>
+            <input
+              aria-label="Jump to time"
+              inputMode="decimal"
+              placeholder="30:00"
+              value={seekValue}
+              onChange={(e) => setSeekValue(e.target.value)}
+              onFocus={() => {
+                setVisible(true)
+                clearTimeout(timerRef.current)
+              }}
+              onBlur={resetTimer}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') seekSoundCloud()
+                if (e.key === 'Escape') setSeekValue('')
+              }}
+              style={seekInput}
+              title="Jump to minutes or mm:ss"
+            />
+            <button
+              onClick={seekSoundCloud}
+              disabled={!seekValue.trim()}
+              style={iconButton}
+              title="Jump to time"
+            >
+              <SeekIcon />
+            </button>
+            {soundCloudDuration > 0 && <span style={timeLabel}>{formatTime(soundCloudDuration)}</span>}
+          </div>
+        )}
       </div>
 
       <div style={actions}>
@@ -181,6 +277,10 @@ function NextIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
 }
 
+function SeekIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 5h2v14H5zm4 12 8.5-5L9 7v10zm9-12h2v14h-2z" /></svg>
+}
+
 const bar: CSSProperties = {
   position: 'fixed',
   top: 12,
@@ -249,6 +349,39 @@ const controls: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 4,
+}
+
+const seekControls: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  marginLeft: 6,
+  paddingLeft: 8,
+  borderLeft: '1px solid rgba(255,255,255,0.10)',
+}
+
+const timeLabel: CSSProperties = {
+  minWidth: 42,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 700,
+  color: 'rgba(255,255,255,0.46)',
+  textAlign: 'center',
+  fontVariantNumeric: 'tabular-nums',
+}
+
+const seekInput: CSSProperties = {
+  width: 58,
+  height: 28,
+  border: '1px solid rgba(255,255,255,0.10)',
+  borderRadius: 6,
+  background: 'rgba(255,255,255,0.06)',
+  color: 'rgba(255,255,255,0.86)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  padding: '0 7px',
+  outline: 'none',
 }
 
 const iconButton: CSSProperties = {
