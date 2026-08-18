@@ -21,6 +21,13 @@ describe('recording format choice', () => {
     expect(pickRecordingFormat(() => false)).toBeNull()
   })
 
+  it('never pins an H.264 level, which would cap the encoder below 2x capture', () => {
+    // avc1.640028 is Level 4.0, about 1080p. Recording runs at 2x, so pinning it
+    // let MediaRecorder accept the type and then die mid-take.
+    const format = pickRecordingFormat(() => true)
+    expect(format?.mimeType).not.toContain('avc1')
+  })
+
   it('keeps the extension consistent with the chosen container', () => {
     const format = pickRecordingFormat((type) => type === 'video/webm')
     expect(format).toEqual({ mimeType: 'video/webm', extension: 'webm' })

@@ -249,16 +249,29 @@ export function App() {
     const recorder = recorderRef.current ?? new SessionRecorder()
     recorderRef.current = recorder
 
-    if (recorder.isRecording) {
+    // Branch on what the button is showing, not on the recorder's own state. If
+    // the encoder died on its own the recorder reads as inactive while the UI
+    // still shows a clock, and trusting the recorder there starts a second take
+    // instead of saving the first. stop() copes with an already-inactive
+    // recorder and still returns whatever was captured.
+    if (recording) {
       setRecordBusy(true)
       try {
         const result = await recorder.stop()
-        if (result) {
+        if (!result || result.blob.size === 0) {
+          // An empty file is worse than none: it looks saved until you open it.
+          flashRecordNotice(result?.failure ?? 'Nothing captured')
+        } else {
           const mode = useStore.getState().devParams.visualMode
           downloadRecording(result.blob, recordingFilename(mode, new Date(), result.format.extension))
-          // Demo mode has no audio to capture, so say so rather than let a silent
-          // file look like a bug.
-          flashRecordNotice(result.hadAudio ? 'Saved' : 'Saved (no audio)')
+          if (result.failure) {
+            // Salvaged rather than clean: say so, since the take is short.
+            flashRecordNotice('Saved (cut short)')
+          } else {
+            // Demo mode has no audio to capture, so say so rather than let a
+            // silent file look like a bug.
+            flashRecordNotice(result.hadAudio ? 'Saved' : 'Saved (no audio)')
+          }
         }
       } finally {
         // Drop back to display resolution whatever happened, or the visualizer
@@ -287,7 +300,7 @@ export function App() {
       // surfaces on the button rather than through the source-error path.
       flashRecordNotice(errorMessage(error, 'Unavailable'))
     }
-  }, [recordBusy, flashRecordNotice])
+  }, [recordBusy, recording, flashRecordNotice])
 
   const sharePreset = useCallback(async () => {
     const query = serializePresetQuery(presetFromDevParams(useStore.getState().devParams))

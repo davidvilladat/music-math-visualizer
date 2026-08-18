@@ -290,7 +290,9 @@ export function TopBar({
             {recordBusy
               ? 'Saving...'
               : recording
-                ? `■ ${formatTime(recordElapsedMs)}`
+                // Naming the action, not just showing elapsed time: a bare
+                // clock gives no hint that the file appears on a second click.
+                ? `■ Stop ${formatTime(recordElapsedMs)}`
                 : (recordNotice ?? '● Record')}
           </button>
         )}
@@ -494,7 +496,7 @@ const recordingButton: CSSProperties = {
   border: '1px solid rgba(239,68,68,0.55)',
   background: 'rgba(239,68,68,0.14)',
   color: '#fca5a5',
-  minWidth: 74,
+  minWidth: 104,
 }
 
 const reactivitySelect: CSSProperties = {

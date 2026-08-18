@@ -17,7 +17,11 @@ export interface RecordingFormat {
 // MP4 first: it drops straight into an editor. WebM is the fallback every
 // MediaRecorder implementation supports.
 const FORMAT_CANDIDATES: readonly RecordingFormat[] = [
-  { mimeType: 'video/mp4;codecs=avc1.640028,mp4a.40.2', extension: 'mp4' },
+  // Deliberately unpinned. Naming a codec profile here (avc1.640028 is H.264
+  // Level 4.0) caps the encoder near 1080p, and since recording runs at 2x that
+  // ceiling is passed on any ordinary display -- whereupon MediaRecorder accepts
+  // the type and then dies mid-take. Letting the browser pick the level keeps
+  // high-resolution captures working.
   { mimeType: 'video/mp4', extension: 'mp4' },
   { mimeType: 'video/webm;codecs=vp9,opus', extension: 'webm' },
   { mimeType: 'video/webm;codecs=vp8,opus', extension: 'webm' },
@@ -64,6 +68,8 @@ export interface RecordingResult {
   blob: Blob
   format: RecordingFormat
   hadAudio: boolean
+  /** Non-null when the take ended on its own; the blob still holds what landed. */
+  failure: string | null
 }
 
 export class SessionRecorder {
@@ -73,6 +79,12 @@ export class SessionRecorder {
   private chunks: Blob[] = []
   private startedAt = 0
   private hadAudio = false
+  private failure: string | null = null
+
+  /** Set when the encoder or a track died on its own rather than on request. */
+  get failureReason(): string | null {
+    return this.failure
+  }
 
   get isRecording(): boolean {
     return this.recorder !== null && this.recorder.state !== 'inactive'
@@ -99,12 +111,20 @@ export class SessionRecorder {
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) this.chunks.push(event.data)
     }
+    // Without this an encoder failure just flips the recorder to inactive, the
+    // UI keeps showing a running clock, and the next click starts a second take
+    // instead of saving the first.
+    recorder.onerror = (event) => {
+      const failed = event as unknown as { error?: { message?: string } }
+      this.failure = failed.error?.message ?? 'The encoder stopped unexpectedly.'
+    }
 
     this.chunks = []
     this.recorder = recorder
     this.stream = stream
     this.format = format
     this.hadAudio = audioTracks.length > 0
+    this.failure = null
     this.startedAt = performance.now()
 
     // A timeslice keeps a long take from sitting in one growing buffer.
@@ -132,6 +152,7 @@ export class SessionRecorder {
       blob: new Blob(this.chunks, { type: format.mimeType }),
       format,
       hadAudio: this.hadAudio,
+      failure: this.failure,
     }
 
     this.chunks = []

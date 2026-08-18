@@ -369,7 +369,13 @@ export class Renderer {
    * scale together, so aspect-correcting shaders are unaffected.
    */
   setRenderScale(scale: number): void {
-    const next = Math.max(1, Math.min(3, scale))
+    // Encoders top out around 4K, and past that MediaRecorder fails mid-take
+    // rather than refusing up front. Cap the buffer so a large display cannot
+    // ask for more than the encoder can take.
+    const canvas = this.renderer.domElement
+    const pixels = Math.max(1, canvas.clientWidth * canvas.clientHeight)
+    const budget = Math.sqrt((3840 * 2160) / pixels)
+    const next = Math.max(1, Math.min(3, scale, budget))
     if (next === this.renderScale) return
     this.renderScale = next
     this.onResize()
