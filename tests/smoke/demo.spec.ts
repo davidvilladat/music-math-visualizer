@@ -169,10 +169,9 @@ test('launches the head-to-head Gaze formula from a shared preset', async ({ pag
   expect(consoleErrors).toEqual([])
 })
 
-// The remaining Chroma pairings differ only in how the two copies are placed, so
-// they share one launch check rather than three copies of the same block.
-for (const mode of ['wake', 'mirror', 'waltz', 'seraph'] as const) {
-  test(`launches the ${mode} Chroma pairing from a shared preset`, async ({ page }) => {
+// The paired formulas share one launch check rather than copies of the same block.
+for (const mode of ['wake', 'mirror', 'waltz', 'seraph', 'mandelbrot'] as const) {
+  test(`launches the ${mode} pairing from a shared preset`, async ({ page }) => {
     const consoleErrors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text())

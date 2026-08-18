@@ -44,6 +44,7 @@ const FORMULA_MODES = [
   { key: 'mirror',    label: 'Mirror',    accent: '#a5f3fc', formulaVariant: 30 },
   { key: 'waltz',     label: 'Waltz',     accent: '#818cf8', formulaVariant: 31 },
   { key: 'seraph',    label: 'Seraph',    accent: '#e879f9', formulaVariant: 32 },
+  { key: 'mandelbrot', label: 'Mandelbrot Twins', accent: '#a78bfa', formulaVariant: 33 },
 ] as const
 
 const EXTRA_MODES = [

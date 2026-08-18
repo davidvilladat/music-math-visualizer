@@ -37,6 +37,7 @@ varying vec3  vColor;
 varying float vAlpha;
 varying float vTip;
 varying float vCore;
+varying float vMask;
 
 const float BASE_COUNT = 10000.0;
 
@@ -736,6 +737,72 @@ vec2 chromaSeraphFormula(float raw, out float tip, out float core) {
   return p;
 }
 
+// Mandelbrot Twins: two complete 30k-point samples of the same set. The left
+// copy keeps the canonical right-facing cusp while the right copy is reflected,
+// so their cusps face across a shared hub. Escape time controls density and
+// colour emphasis; a shared rotation turns the pair as one body.
+vec2 mandelbrotTwinsFormula(float raw, out float tip, out float core, out float mask) {
+  float side = raw < 30000.0 ? -1.0 : 1.0;
+  float local = mod(raw, 30000.0);
+
+  // A deterministic scattered sample avoids imposing a rectangular grid on the
+  // fractal. Both halves reuse local, making the twins geometrically identical.
+  float u = hash(local * 1.371 + 3.1);
+  float v = hash(local * 2.713 + 19.7);
+  vec2 c = vec2(-2.15 + 3.0 * u, -1.25 + 2.5 * v);
+  vec2 z = vec2(0.0);
+  float escapeIter = 64.0;
+  float escaped = 0.0;
+
+  for (int iter = 0; iter < 64; iter++) {
+    if (escaped < 0.5) {
+      z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+      if (dot(z, z) > 4.0) {
+        escapeIter = float(iter + 1);
+        escaped = 1.0;
+      }
+    }
+  }
+
+  // Continuous escape time removes the hard integer bands around the boundary.
+  float smoothIter = escapeIter;
+  if (escaped > 0.5) {
+    float logRadius = log(max(length(z), 2.0001));
+    smoothIter = escapeIter + 1.0 - log(max(logRadius, 0.0001)) / log(2.0);
+  }
+  float dwell = clamp(smoothIter / 64.0, 0.0, 1.0);
+
+  vec2 m = c + vec2(0.65, 0.0);
+  float boundaryWave = sin(smoothIter * 0.32 + uTime * 0.70);
+  m *= 1.0 + boundaryWave * 0.018 * (0.35 + dwell * 0.65);
+
+  // Mirror only x: the familiar Mandelbrot cusp points inward on both copies.
+  m.x *= -side;
+  m *= 30.0;
+  float partnerRock = sin(uBarPhase * 6.2831853) * 0.055 * uTempoLock;
+  m = rotate2(m, side * partnerRock);
+
+  float radius = 50.0
+               + uBass * 7.0 * uBandWarp * uReactivity
+               + uBarPulse * 4.0 * uReactivity * uBeatGate;
+  vec2 p = m + vec2(side * radius, 0.0);
+
+  float spin = uTime * 0.16 + uSectionEnergy * 0.28 * uReactivity;
+  p = rotate2(p, spin);
+
+  // Quickly escaping samples remain as a very faint surrounding constellation;
+  // long-dwelling and interior samples carry the recognizable fractal body.
+  mask = 0.025 + 0.975 * smoothstep(0.06, 0.72, dwell);
+  float escapeBand = 0.5 + 0.5 * cos(smoothIter * 0.72 - uTime * 1.10);
+  tip = escaped * smoothstep(0.34, 0.96, dwell) * smoothstep(0.40, 0.92, escapeBand)
+      + (1.0 - escaped) * 0.12;
+  core = mix(smoothstep(0.06, 0.82, dwell), 0.88, 1.0 - escaped);
+
+  float hub = 1.0 - smoothstep(8.0, 44.0, length(p));
+  tip = clamp(tip + hub * 0.24, 0.0, 1.0);
+  return p;
+}
+
 vec2 attractorFormula(float raw, out float tip, out float core) {
   float x = 1.0 + (hash(raw * 1.7) - 0.5) * 0.05;
   float y = 1.0 + (hash(raw * 2.3 + 11.0) - 0.5) * 0.05;
@@ -1188,6 +1255,7 @@ void main() {
 
   float tip = 0.0;
   float core = 0.0;
+  float visibility = 1.0;
   vec2 p;
   if (uVariant < 0.5) {
     p = originalFormula(i, layer, tip, core);
@@ -1253,8 +1321,10 @@ void main() {
     p = chromaMirrorFormula(raw, tip, core);
   } else if (uVariant < 31.5) {
     p = chromaWaltzFormula(raw, tip, core);
-  } else {
+  } else if (uVariant < 32.5) {
     p = chromaSeraphFormula(raw, tip, core);
+  } else {
+    p = mandelbrotTwinsFormula(raw, tip, core, visibility);
   }
 
   float beatEnvelope = exp(-uBeatPhase * 6.5);
@@ -1279,9 +1349,14 @@ void main() {
   p *= 1.0 + audioWarp * 0.045;
   p += flowWarp * audioWarp * (2.6 + beatDrive * 4.2 + abs(barBreath) * 1.1);
 
-  float jitterSeed = i + layer * 127.13;
+  // Reuse the same jitter and grain sample in each 30k half of Mandelbrot so
+  // small rendering imperfections do not break the twin symmetry.
+  float scatterRaw = uVariant > 32.5 ? mod(raw, 30000.0) : raw;
+  float scatterLayer = floor(scatterRaw / BASE_COUNT);
+  float scatterIndex = mod(scatterRaw, BASE_COUNT) + 1.0;
+  float jitterSeed = scatterIndex + scatterLayer * 127.13;
   vec2 jitter = vec2(hash(jitterSeed), hash(jitterSeed + 71.7)) - 0.5;
-  float jitterAmp = mix(0.12, 0.42, layer / 3.0) * (uVariant < 0.5 ? 1.0 : uVariant < 1.5 ? 0.72 : 0.86);
+  float jitterAmp = mix(0.12, 0.42, min(scatterLayer, 3.0) / 3.0) * (uVariant < 0.5 ? 1.0 : uVariant < 1.5 ? 0.72 : 0.86);
   p += jitter * jitterAmp;
 
   float baseScale = 140.0;
@@ -1317,14 +1392,15 @@ void main() {
   else if (uVariant < 29.5) baseScale = 150.0;
   else if (uVariant < 30.5) baseScale = 128.0;
   else if (uVariant < 31.5) baseScale = 135.0;
-  else baseScale = 130.0;
+  else if (uVariant < 32.5) baseScale = 130.0;
+  else baseScale = 126.0;
   float scale = baseScale / max(uZoom, 0.01);
   vec2 ndc = p / scale;
-  if (uVariant > 25.5 && uVariant < 27.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
+  if ((uVariant > 25.5 && uVariant < 27.5) || uVariant > 32.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
   gl_Position = vec4(ndc, 0.0, 1.0);
 
-  float grain = hash(i * 3.17 + layer * 23.0);
-  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
+  float grain = hash(scatterIndex * 3.17 + scatterLayer * 23.0);
+  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
   float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp + beatDrive * 0.18 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
@@ -1347,6 +1423,11 @@ void main() {
     // from a bright smear, and it grades along the span on its own.
     col = mix(col, chroma, uVariant > 31.5 ? 0.68 : 0.48);
   }
+  if (uVariant > 32.5) {
+    vec3 fractal = 0.54 + 0.46 * cos(vec3(0.2, 2.3, 4.4) + p.x * 0.026 - p.y * 0.019 + uTime * 0.42);
+    col = mix(col, fractal, 0.74);
+    col = mix(col, vec3(1.0, 0.30, 0.72), smoothstep(0.42, 0.94, tip) * 0.34);
+  }
   if (uVariant > 26.5 && uVariant < 27.5) {
     vec3 cream = vec3(1.02, 0.90, 0.72);
     col = mix(col, cream, core * 0.38 * (1.0 - smoothstep(0.42, 0.92, tip)));
@@ -1355,6 +1436,7 @@ void main() {
   vColor = col;
   vTip = tip;
   vCore = core;
+  vMask = visibility;
   vAlpha = max(uBrightness, 0.42)
          + tip * 0.36
          + strand * 0.16
