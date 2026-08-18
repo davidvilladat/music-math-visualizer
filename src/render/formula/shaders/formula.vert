@@ -855,10 +855,13 @@ vec2 mandelbrotTwinsFormula(float raw, out float tip, out float core, out float 
 // artefact of it, so the guard only catches the exact-zero case and the rest is
 // left to run off-frame -- clipped by the viewport exactly as the original was
 // clipped by its canvas.
-vec2 nautilusFormula(float raw, out float tip, out float core) {
-  // The source advances t by PI/80 a frame where this clock runs at PI/240, so
-  // the phase terms read a tripled clock to keep the original tempo.
-  float t = uTime * 3.0;
+// rate scales the clock: 3.0 is the source's own tempo (it steps t by PI/80 a
+// frame where this clock runs at PI/240), and Nacre runs the same figure slower.
+// sweep comes back as the point's position along the body, tail 0 to head 1 --
+// the sweep parameter itself, before it is wound into the scroll, which is the
+// one coordinate that stays fixed to the shell while the figure turns.
+vec2 nautilusFormula(float raw, float rate, out float tip, out float core, out float sweep) {
+  float t = uTime * rate;
 
   float layer = floor(raw / BASE_COUNT);
   float idx = mod(raw, BASE_COUNT);
@@ -867,6 +870,7 @@ vec2 nautilusFormula(float raw, out float tip, out float core) {
   float i = idx + layer * 0.25;
 
   float y = i / 253.0;
+  sweep = y / 39.53;            // i/253 over the full 10k sweep, normalised
   float k = 5.0 * cos(i / 44.0);
   float e = y / 2.0 - 15.0;
   float d = length(vec2(k, e)) / 3.0;
@@ -990,6 +994,48 @@ vec2 miraFormula(out float tip, out float core) {
   tip = clamp(smoothstep(112.0, 186.0, length(p)) * 0.70
             + smoothstep(0.62, 0.99, abs(sin(c))) * 0.26, 0.0, 1.0);
   core = smoothstep(2.0, 13.0, radius) * (1.0 - smoothstep(22.0, 27.5, radius));
+  return p;
+}
+
+// Tandem: one sweep read at two phases rather than two figures placed apart.
+// m is 0 or 3 by index parity and enters both the radius q and the angle c, so
+// the offset sets the halves on opposite sides of the hub and keeps them facing
+// across it as the whole thing circles. Nothing here positions them relative to
+// each other -- that reading falls out of the single phase offset.
+vec2 tandemFormula(float raw, out float tip, out float core) {
+  // The source steps t by PI/45 a frame where this clock runs at PI/240.
+  float t = uTime * (240.0 / 45.0);
+
+  float layer = floor(raw / 20000.0);
+  float local = mod(raw, 20000.0);
+  // Two offset copies of the same 20k sweep, the offset kept under one index
+  // step so it thickens the strands rather than drawing the pair twice.
+  float i = local + layer * 0.5;
+
+  // Read off the whole index, so both copies of a point stay in the same half.
+  float m = mod(local, 2.0) * 3.0;
+
+  float k = 9.0 * cos(i / 61.0);
+  float e = i / 652.0 - 13.0;
+  // Squared magnitude, and the +1 floor means k/d below never blows up.
+  float d = (k * k + e * e) / 89.0 + 1.0;
+
+  float q = 79.0 - e / 2.0 * sin(k)
+          + k / d * (6.0 + 5.0 * sin(sin(d * d + e / 9.0 - t + m)));
+  float c = d / 1.9 + cos(t - d * 3.0 + m) / 11.0 - t / 16.0 + m;
+
+  float px = q * sin(c) + 200.0;
+  float py = (q + 40.0) * cos(c) + 200.0;
+
+  vec2 p = vec2(px - 200.0, -(py - 200.0));
+
+  core = smoothstep(1.2, 3.0, d) * (1.0 - smoothstep(4.6, 5.6, d));
+  // Charge the gap the two hold across, the way the other facing pairs do --
+  // it is the one place the relationship between them is visible.
+  float between = 1.0 - smoothstep(12.0, 74.0, length(p));
+  tip = clamp(smoothstep(118.0, 172.0, length(p)) * 0.55
+            + smoothstep(0.62, 0.99, abs(sin(c * 2.0))) * 0.24
+            + between * 0.22, 0.0, 1.0);
   return p;
 }
 
@@ -1446,6 +1492,7 @@ void main() {
   float tip = 0.0;
   float core = 0.0;
   float visibility = 1.0;
+  float sweep = 0.0;
   vec2 p;
   if (uVariant < 0.5) {
     p = originalFormula(i, layer, tip, core);
@@ -1516,13 +1563,20 @@ void main() {
   } else if (uVariant < 33.5) {
     p = mandelbrotTwinsFormula(raw, tip, core, visibility);
   } else if (uVariant < 34.5) {
-    p = nautilusFormula(raw, tip, core);
+    p = nautilusFormula(raw, 3.0, tip, core, sweep);
   } else if (uVariant < 35.5) {
     p = frondFormula(raw, tip, core);
   } else if (uVariant < 36.5) {
     p = lorenzFormula(raw, tip, core);
-  } else {
+  } else if (uVariant < 37.5) {
     p = miraFormula(tip, core);
+  } else if (uVariant < 38.5) {
+    // A third of Nautilus' clock. Every term in that figure is driven by t, so
+    // one scale on it slows the whole thing coherently rather than damping the
+    // parts unevenly.
+    p = nautilusFormula(raw, 0.75, tip, core, sweep);
+  } else {
+    p = tandemFormula(raw, tip, core);
   }
 
   float beatEnvelope = exp(-uBeatPhase * 6.5);
@@ -1598,14 +1652,16 @@ void main() {
   // 200 is the source's own half-canvas, so the plume frames exactly as it did
   // there -- including clipping the widest tips at full spread, which the
   // original did too.
-  else baseScale = 200.0;
+  else if (uVariant < 37.5) baseScale = 200.0;
+  else if (uVariant < 38.5) baseScale = 178.0;
+  else baseScale = 195.0;
   float scale = baseScale / max(uZoom, 0.01);
   vec2 ndc = p / scale;
   if ((uVariant > 25.5 && uVariant < 27.5) || uVariant > 32.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
   gl_Position = vec4(ndc, 0.0, 1.0);
 
   float grain = hash(scatterIndex * 3.17 + scatterLayer * 23.0);
-  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
+  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 38.5 ? 1.52 : uVariant > 37.5 ? 1.74 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
   float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp + beatDrive * 0.18 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
@@ -1662,6 +1718,27 @@ void main() {
     vec3 plume = 0.55 + 0.45 * cos(vec3(0.4, 2.4, 4.6) + length(aMira) * 0.26 + uTime * 0.3);
     col = mix(col, plume, 0.60);
     col = mix(col, vec3(1.0, 0.86, 0.60), smoothstep(0.42, 0.95, tip) * 0.45);
+  }
+  if (uVariant > 37.5 && uVariant < 38.5) {
+    // Graded along the sweep -- the body axis -- rather than by screen position.
+    // The chroma pairings hue off p.x and p.y, which slides the colour across
+    // the figure as it moves; here the banding is pinned to the shell, so it
+    // turns with the body the way an iridescent surface does.
+    vec3 nacre = 0.52 + 0.48 * cos(6.2831853 * (sweep * 0.85 + uTime * 0.02)
+                                   + vec3(0.0, 2.1, 4.2));
+    col = mix(col, nacre, 0.74);
+    // The sprays take a cool cast instead of the body's, so they stay readable
+    // as separate from it where they cross.
+    col = mix(col, vec3(0.60, 0.85, 1.0), smoothstep(0.45, 0.95, tip) * 0.48);
+  }
+  if (uVariant > 38.5) {
+    // Hue off the angle the point sits at. The two halves are three radians
+    // apart in exactly that angle, so they come out in near-opposite hues and
+    // read as a pair holding a gap rather than as one blob split in two.
+    float around = atan(p.y, p.x);
+    vec3 duet = 0.54 + 0.46 * cos(vec3(0.0, 2.1, 4.2) + around * 1.1 + uTime * 0.25);
+    col = mix(col, duet, 0.66);
+    col = mix(col, vec3(1.0, 0.94, 0.86), smoothstep(0.45, 0.95, tip) * 0.38);
   }
   if (uVariant > 26.5 && uVariant < 27.5) {
     vec3 cream = vec3(1.02, 0.90, 0.72);

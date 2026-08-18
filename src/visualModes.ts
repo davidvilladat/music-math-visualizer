@@ -49,6 +49,8 @@ const FORMULA_MODES = [
   { key: 'frond',     label: 'Frond',     accent: '#4ade80', formulaVariant: 35 },
   { key: 'lorenz',    label: 'Lorenz Rosette', accent: '#f43f5e', formulaVariant: 36 },
   { key: 'mira',      label: 'Mira Plume', accent: '#fdba74', formulaVariant: 37 },
+  { key: 'nacre',     label: 'Nacre',     accent: '#e9d5ff', formulaVariant: 38 },
+  { key: 'tandem',    label: 'Tandem',    accent: '#a5b4fc', formulaVariant: 39 },
 ] as const
 
 const EXTRA_MODES = [
