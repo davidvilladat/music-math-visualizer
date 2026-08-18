@@ -36,6 +36,14 @@ const FORMULA_MODES = [
   { key: 'chroma',    label: 'Chroma',    accent: '#67e8f9', formulaVariant: 22 },
   { key: 'attractor', label: 'Attractor', accent: '#f4f4f5', formulaVariant: 23 },
   { key: 'prism',     label: 'Prism',     accent: '#c4b5fd', formulaVariant: 24 },
+  { key: 'contact',   label: 'Contact',   accent: '#ff1f1f', formulaVariant: 25 },
+  { key: 'birdwing',  label: 'Birdwing',  accent: '#fbbf24', formulaVariant: 26 },
+  { key: 'bird',      label: 'Bird',      accent: '#93c5fd', formulaVariant: 27 },
+  { key: 'gaze',      label: 'Gaze',      accent: '#5eead4', formulaVariant: 28 },
+  { key: 'wake',      label: 'Wake',      accent: '#34d399', formulaVariant: 29 },
+  { key: 'mirror',    label: 'Mirror',    accent: '#a5f3fc', formulaVariant: 30 },
+  { key: 'waltz',     label: 'Waltz',     accent: '#818cf8', formulaVariant: 31 },
+  { key: 'seraph',    label: 'Seraph',    accent: '#e879f9', formulaVariant: 32 },
 ] as const
 
 const EXTRA_MODES = [

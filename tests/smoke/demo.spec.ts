@@ -87,3 +87,115 @@ test('launches aviation demo and switches aircraft variants', async ({ page }) =
 
   expect(consoleErrors).toEqual([])
 })
+
+test('launches the Contact formula from a shared preset', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
+  await page.addInitScript(() => {
+    const existing = navigator.mediaDevices ?? {}
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        ...existing,
+        getDisplayMedia: async () => new MediaStream(),
+      },
+    })
+  })
+
+  await page.goto('/?mode=contact&reactivity=balanced')
+  await page.getByTestId('launch-demo').click()
+
+  await expect(page.getByTestId('visualizer-canvas')).toBeVisible()
+  await expect(page.getByLabel('Visual mode')).toHaveValue('contact')
+  await page.waitForTimeout(500)
+
+  expect(consoleErrors).toEqual([])
+})
+
+test('launches the paired Chroma formula from a shared preset', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
+  await page.addInitScript(() => {
+    const existing = navigator.mediaDevices ?? {}
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        ...existing,
+        getDisplayMedia: async () => new MediaStream(),
+      },
+    })
+  })
+
+  await page.goto('/?mode=chroma&reactivity=balanced')
+  await page.getByTestId('launch-demo').click()
+
+  await expect(page.getByTestId('visualizer-canvas')).toBeVisible()
+  await expect(page.getByLabel('Visual mode')).toHaveValue('chroma')
+  await page.waitForTimeout(500)
+
+  expect(consoleErrors).toEqual([])
+})
+
+test('launches the head-to-head Gaze formula from a shared preset', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
+  await page.addInitScript(() => {
+    const existing = navigator.mediaDevices ?? {}
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        ...existing,
+        getDisplayMedia: async () => new MediaStream(),
+      },
+    })
+  })
+
+  await page.goto('/?mode=gaze&reactivity=balanced')
+  await page.getByTestId('launch-demo').click()
+
+  await expect(page.getByTestId('visualizer-canvas')).toBeVisible()
+  await expect(page.getByLabel('Visual mode')).toHaveValue('gaze')
+  await page.waitForTimeout(500)
+
+  expect(consoleErrors).toEqual([])
+})
+
+// The remaining Chroma pairings differ only in how the two copies are placed, so
+// they share one launch check rather than three copies of the same block.
+for (const mode of ['wake', 'mirror', 'waltz', 'seraph'] as const) {
+  test(`launches the ${mode} Chroma pairing from a shared preset`, async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+
+    await page.addInitScript(() => {
+      const existing = navigator.mediaDevices ?? {}
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: {
+          ...existing,
+          getDisplayMedia: async () => new MediaStream(),
+        },
+      })
+    })
+
+    await page.goto(`/?mode=${mode}&reactivity=balanced`)
+    await page.getByTestId('launch-demo').click()
+
+    await expect(page.getByTestId('visualizer-canvas')).toBeVisible()
+    await expect(page.getByLabel('Visual mode')).toHaveValue(mode)
+    await page.waitForTimeout(500)
+
+    expect(consoleErrors).toEqual([])
+  })
+}

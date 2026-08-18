@@ -9,6 +9,7 @@ export interface AircraftDevParams {
   speed: number
   tempoReactivity: number
   reactivity: number
+  beatGate: number
 }
 
 export type AircraftVariantStatus = 'ready' | 'compiling' | 'failed' | 'idle'
@@ -163,7 +164,7 @@ export class AircraftScene {
       ? Math.max(0.5, Math.min(1.65, features.bpm / 120))
       : 1
     const tempo = 1 + (bpmRate - 1) * cfg.tempoReactivity * Math.max(0.25, features.bpmConfidence)
-    const energy = 1 + features.rms * 0.18 * cfg.reactivity
+    const energy = 1 + features.rms * 0.18 * cfg.reactivity * cfg.beatGate
     const targetRate = Math.max(0.25, Math.min(2.4, tempo * energy))
     const follow = 1 - Math.exp(-dt * 4)
     this.motionRate += (targetRate - this.motionRate) * follow

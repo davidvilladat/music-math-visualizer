@@ -39,6 +39,7 @@ export class AudioEngine {
   private beat = new BeatDetector()
   private lastTime = performance.now()
   private musicalBeats = 0
+  private lastLockedBeat = 0
 
   setOnEnded(cb: (() => void) | null): void {
     this.onEnded = cb
@@ -153,16 +154,31 @@ export class AudioEngine {
     features.bpmConfidence = this.beat.bpmConfidence
 
     const effectiveBpm = features.bpm ?? 120
-    const confidence = Math.max(0.2, features.bpmConfidence)
     const beatsPerSecond = effectiveBpm / 60
-    this.musicalBeats += delta * beatsPerSecond * confidence
+
+    // The clock advances at true musical rate. Confidence must never scale the
+    // rate -- doing so ran the bar clock slow and put barPhase out of time with
+    // the music entirely. It gates how far the clock is trusted instead, on
+    // barPulse below and on anything that locks to the phase.
+    this.musicalBeats += delta * beatsPerSecond
+
+    // Rate alone leaves the bar line at an arbitrary offset, so ease the
+    // accumulator onto each detected beat. This aligns the clock to the beat
+    // grid; which beat counts as the downbeat is still arbitrary, since nothing
+    // here detects one.
+    if (features.lastBeatTime > 0 && features.lastBeatTime !== this.lastLockedBeat) {
+      this.lastLockedBeat = features.lastBeatTime
+      const nearestBeat = Math.round(this.musicalBeats)
+      this.musicalBeats += (nearestBeat - this.musicalBeats) * 0.25 * features.bpmConfidence
+    }
+
     const beatDurationMs = 60_000 / effectiveBpm
     const sinceBeat = features.lastBeatTime > 0 ? now - features.lastBeatTime : this.musicalBeats % 1 * beatDurationMs
     features.beatPhase = Math.max(0, Math.min(1, sinceBeat / beatDurationMs))
     features.barPhase = (this.musicalBeats / 4) % 1
     features.phrasePhase = (this.musicalBeats / 16) % 1
     const barDistance = Math.min(features.barPhase, 1 - features.barPhase)
-    features.barPulse = Math.exp(-barDistance * 18)
+    features.barPulse = Math.exp(-barDistance * 18) * features.bpmConfidence
     const rawSectionEnergy = Math.min(1, features.rms * 0.7 + features.bass * 0.45 + features.flux * 0.7)
     features.sectionEnergy = this.smoothers.sectionEnergy.update(rawSectionEnergy)
 

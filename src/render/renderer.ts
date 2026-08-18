@@ -31,12 +31,17 @@ function hueToRgb(h: number): [number, number, number] {
   return [1, 0, x]
 }
 
-const REACTIVITY_PRESETS: Record<DevParams['reactivity'], { visual: number; tempo: number }> = {
-  steady: { visual: 0.28, tempo: 0.0 },
-  subtle: { visual: 0.45, tempo: 0.45 },
-  balanced: { visual: 1.0, tempo: 1.0 },
-  intense: { visual: 1.55, tempo: 1.55 },
-  frenetic: { visual: 2.25, tempo: 2.25 },
+// beatGate is deliberately 0 or 1 rather than a scale. Steady takes the beat out
+// of the motion completely: the time step stops flexing with level and beat, and
+// the beat-driven kicks in geometry and colour are switched off, leaving only the
+// smooth level-following that `visual` governs. Every other preset passes 1, so
+// they render exactly as before.
+const REACTIVITY_PRESETS: Record<DevParams['reactivity'], { visual: number; tempo: number; beatGate: number }> = {
+  steady: { visual: 0.28, tempo: 0.0, beatGate: 0 },
+  subtle: { visual: 0.45, tempo: 0.45, beatGate: 1 },
+  balanced: { visual: 1.0, tempo: 1.0, beatGate: 1 },
+  intense: { visual: 1.55, tempo: 1.55, beatGate: 1 },
+  frenetic: { visual: 2.25, tempo: 2.25, beatGate: 1 },
 }
 
 export class Renderer {
@@ -257,6 +262,7 @@ export class Renderer {
         speed: devParams.formulaSpeed,
         tempoReactivity: reactivity.tempo,
         reactivity: reactivity.visual,
+        beatGate: reactivity.beatGate,
       })
       this.aircraft.render(this.post.sourceRT)
     } else if (isFormulaMode(mode)) {
@@ -273,6 +279,7 @@ export class Renderer {
         beatKick: devParams.formulaBeatKick,
         bandWarp: devParams.formulaBandWarp,
         reactivity: reactivity.visual,
+        beatGate: reactivity.beatGate,
       })
       this.formula.render(this.post.sourceRT)
     } else {

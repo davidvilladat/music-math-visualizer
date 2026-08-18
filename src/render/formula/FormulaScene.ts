@@ -16,6 +16,7 @@ export interface FormulaDevParams {
   beatKick: number
   bandWarp: number
   reactivity: number
+  beatGate: number
 }
 
 const BASE_POINT_COUNT = 10_000
@@ -73,6 +74,9 @@ export class FormulaScene {
         uBarPulse:   { value: 0 },
         uSectionEnergy: { value: 0 },
         uReactivity: { value: 1 },
+        uBeatGate:   { value: 1 },
+        uBeatKick:   { value: 1 },
+        uTempoLock:  { value: 0 },
         uProfile:    { value: new THREE.Vector4(1, 1, 1, 1) },
         uResolution: { value: new THREE.Vector2(w, h) },
       },
@@ -91,9 +95,15 @@ export class FormulaScene {
       ? Math.max(0.5, Math.min(1.85, features.bpm / 120))
       : 1
     const tempo = 1 + (bpmRate - 1) * cfg.tempoInfluence * profile.tempo * cfg.tempoReactivity * Math.max(0.25, features.bpmConfidence)
-    const energy = 1 + features.rms * cfg.energyInfluence * profile.energy * cfg.reactivity
-    const beat = 1 + features.beatPulse * cfg.beatKick * profile.beat * cfg.reactivity
-    const targetRate = Math.max(0.2, Math.min(3.0, tempo * energy * beat))
+    // Gated rather than scaled: on steady this collapses to 1, so targetRate is a
+    // constant 1 and the time step never flexes.
+    const energy = 1 + features.rms * cfg.energyInfluence * profile.energy * cfg.reactivity * cfg.beatGate
+    // beatPulse deliberately does NOT appear here. This rate drives a time
+    // accumulator, so a beat that raises it does not bump the visual and settle
+    // back -- it advances the animation's phase permanently, and every beat
+    // pushes it further. That was the lurch. Beats now act only through the
+    // transient terms in the shader, which do return to baseline.
+    const targetRate = Math.max(0.2, Math.min(3.0, tempo * energy))
     const follow = 1 - Math.exp(-dt * 5)
     this.motionRate += (targetRate - this.motionRate) * follow
     this.time += dt * T_RATE * cfg.speed * this.motionRate
@@ -118,6 +128,9 @@ export class FormulaScene {
     u.uBarPulse.value   = features.barPulse
     u.uSectionEnergy.value = features.sectionEnergy
     u.uReactivity.value = cfg.reactivity
+    u.uBeatGate.value   = cfg.beatGate
+    u.uBeatKick.value   = cfg.beatKick
+    u.uTempoLock.value  = features.bpmConfidence
     u.uProfile.value.set(profile.bass, profile.mid, profile.high, profile.beat)
   }
 
@@ -148,6 +161,14 @@ export class FormulaScene {
       { tempo: 1.1, energy: 1.2, bass: 1.0, mid: 1.0, high: 1.7, beat: 0.9 },
       { tempo: 0.6, energy: 0.8, bass: 0.6, mid: 1.0, high: 1.6, beat: 0.7 },
       { tempo: 1.3, energy: 1.0, bass: 1.1, mid: 1.2, high: 1.2, beat: 1.1 },
+      { tempo: 0.75, energy: 1.0, bass: 1.25, mid: 1.15, high: 1.4, beat: 0.85 },
+      { tempo: 0.85, energy: 1.0, bass: 1.15, mid: 1.1, high: 1.35, beat: 1.2 },
+      { tempo: 0.9, energy: 1.0, bass: 1.2, mid: 1.0, high: 1.2, beat: 1.3 },
+      { tempo: 1.1, energy: 1.2, bass: 1.0, mid: 1.0, high: 1.7, beat: 0.9 },
+      { tempo: 1.3, energy: 1.1, bass: 1.2, mid: 0.9, high: 1.4, beat: 1.2 },
+      { tempo: 0.9, energy: 1.2, bass: 1.1, mid: 1.2, high: 1.6, beat: 0.8 },
+      { tempo: 1.2, energy: 1.1, bass: 1.0, mid: 1.0, high: 1.5, beat: 1.1 },
+      { tempo: 1.0, energy: 1.2, bass: 1.1, mid: 1.0, high: 1.6, beat: 1.4 },
     ]
     return profiles[Math.max(0, Math.min(profiles.length - 1, Math.round(variant)))]
   }

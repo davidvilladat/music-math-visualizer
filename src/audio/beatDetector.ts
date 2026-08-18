@@ -74,7 +74,17 @@ export class BeatDetector {
 
     const sorted = [...intervals].sort((a, b) => a - b)
     const median = sorted[Math.floor(sorted.length / 2)]
-    const bpm = 60_000 / median
+    // Fold into a single octave. The interval filter admits 60-180 BPM, so a
+    // track whose eighths read as beats lands at double tempo and halves every
+    // rate derived from it; folding removes that whiplash without needing to
+    // decide which reading is "right".
+    // Closed form rather than a doubling loop: bpm is derived from runtime
+    // timing, and a bare `while` here would lean on the interval filter above to
+    // terminate -- widen that filter to admit a zero interval and the loop hangs
+    // the frame. This always terminates whatever the input.
+    const FOLD_LOW = 85
+    const raw = 60_000 / median
+    const bpm = raw / Math.pow(2, Math.floor(Math.log2(raw / FOLD_LOW)))
     const meanDeviation = intervals.reduce((sum, interval) => sum + Math.abs(interval - median), 0) / intervals.length
     const consistency = Math.max(0, 1 - meanDeviation / median)
     const sampleConfidence = Math.min(1, intervals.length / 8)
