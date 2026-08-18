@@ -59,6 +59,7 @@ export class Renderer {
   private audioInjector: AudioInjector
   private engine: AudioEngine
   private demo: DemoEngine | null = null
+  private renderScale = 1
   readonly features: AudioFeatures
 
   private rafId = 0
@@ -361,10 +362,31 @@ export class Renderer {
     }
   }
 
+  /**
+   * Multiplier on the drawing buffer, used to record above display resolution.
+   * setSize leaves the CSS size alone, so the canvas still fills the window
+   * while the buffer -- and therefore captureStream -- runs at scale. Both axes
+   * scale together, so aspect-correcting shaders are unaffected.
+   */
+  setRenderScale(scale: number): void {
+    const next = Math.max(1, Math.min(3, scale))
+    if (next === this.renderScale) return
+    this.renderScale = next
+    this.onResize()
+  }
+
+  get canvasElement(): HTMLCanvasElement {
+    return this.renderer.domElement
+  }
+
+  get captureAudioTracks(): MediaStreamTrack[] {
+    return this.engine.audioTracks
+  }
+
   private onResize = (): void => {
     const canvas = this.renderer.domElement
-    const w = canvas.clientWidth
-    const h = canvas.clientHeight
+    const w = Math.round(canvas.clientWidth * this.renderScale)
+    const h = Math.round(canvas.clientHeight * this.renderScale)
     this.renderer.setSize(w, h, false)
     this.fluid.updateAspect(w / h)
     this.post.resize(w, h)

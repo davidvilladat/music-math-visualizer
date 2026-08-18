@@ -41,6 +41,14 @@ export class AudioEngine {
   private musicalBeats = 0
   private lastLockedBeat = 0
 
+  /**
+   * The live tab-capture tracks. A recorder may add these to its own stream, but
+   * must never stop them -- they are the analyser's input.
+   */
+  get audioTracks(): MediaStreamTrack[] {
+    return this.stream?.getAudioTracks() ?? []
+  }
+
   setOnEnded(cb: (() => void) | null): void {
     this.onEnded = cb
   }

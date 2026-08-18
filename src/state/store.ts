@@ -68,6 +68,8 @@ export interface DevParams {
   formulaEnergyInfluence: number
   formulaBeatKick: number
   formulaBandWarp: number
+  recordScale: number
+  recordFps: number
   bloomThreshold: number
   bloomKnee: number
   bloomStrength: number
@@ -137,6 +139,8 @@ export const DEFAULT_DEV_PARAMS: DevParams = {
   formulaEnergyInfluence: 0.35,
   formulaBeatKick: 1.0,
   formulaBandWarp: 1.0,
+  recordScale: 2,
+  recordFps: 60,
   bloomThreshold: 0.45,
   bloomKnee: 0.1,
   bloomStrength: 1.4,

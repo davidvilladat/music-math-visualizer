@@ -44,9 +44,23 @@ interface Props {
   onChangeSource?: () => void
   onSharePreset?: () => void
   shareLabel?: string | null
+  onToggleRecord?: () => void
+  recording?: boolean
+  recordElapsedMs?: number
+  recordBusy?: boolean
+  recordNotice?: string | null
 }
 
-export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
+export function TopBar({
+  onChangeSource,
+  onSharePreset,
+  shareLabel,
+  onToggleRecord,
+  recording = false,
+  recordElapsedMs = 0,
+  recordBusy = false,
+  recordNotice = null,
+}: Props) {
   const track = useStore((s) => s.currentTrack)
   const isPlaying = useStore((s) => s.isPlaying)
   const visualMode = useStore((s) => s.devParams.visualMode)
@@ -60,10 +74,19 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
   const [seekValue, setSeekValue] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
+  // The bar hides itself when the mouse settles, which is right for watching but
+  // wrong mid-recording: the elapsed clock is the only sign the capture is live,
+  // and Stop should never have to be hunted for. So recording pins it open.
   const resetTimer = useCallback(() => {
     setVisible(true)
     clearTimeout(timerRef.current)
+    if (recording) return
     timerRef.current = setTimeout(() => setVisible(false), 3200)
+  }, [recording])
+
+  const holdOpen = useCallback(() => {
+    setVisible(true)
+    clearTimeout(timerRef.current)
   }, [])
 
   useEffect(() => {
@@ -141,6 +164,11 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
     <div
       style={{ ...bar, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none' }}
       data-testid="top-bar"
+      // Only movement reset the fade timer, so the bar used to disappear from
+      // under a resting cursor. Hovering it holds it open until the pointer
+      // leaves.
+      onMouseEnter={holdOpen}
+      onMouseLeave={resetTimer}
     >
       <div style={trackSection}>
         {art ? <img src={art} alt="" style={albumArt} /> : <div style={artPlaceholder} />}
@@ -248,6 +276,22 @@ export function TopBar({ onChangeSource, onSharePreset, shareLabel }: Props) {
         {onSharePreset && (
           <button onClick={onSharePreset} style={sourceButton} title="Copy visual preset link">
             {shareLabel ?? 'Share'}
+          </button>
+        )}
+
+        {onToggleRecord && (
+          <button
+            onClick={onToggleRecord}
+            disabled={recordBusy}
+            data-testid="record-toggle"
+            style={recording ? recordingButton : sourceButton}
+            title={recording ? 'Stop recording and save the file' : 'Record the visuals with the playing audio'}
+          >
+            {recordBusy
+              ? 'Saving...'
+              : recording
+                ? `■ ${formatTime(recordElapsedMs)}`
+                : (recordNotice ?? '● Record')}
           </button>
         )}
 
@@ -442,6 +486,15 @@ const sourceButton: CSSProperties = {
   fontWeight: 650,
   padding: '0 10px',
   cursor: 'pointer',
+}
+
+// Reads as armed rather than as one more control in the row.
+const recordingButton: CSSProperties = {
+  ...sourceButton,
+  border: '1px solid rgba(239,68,68,0.55)',
+  background: 'rgba(239,68,68,0.14)',
+  color: '#fca5a5',
+  minWidth: 74,
 }
 
 const reactivitySelect: CSSProperties = {

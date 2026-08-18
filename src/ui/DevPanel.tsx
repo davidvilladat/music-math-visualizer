@@ -82,6 +82,8 @@ export function DevPanel() {
       formulaEnergyInfluence: { value: initial.formulaEnergyInfluence, min: 0.0, max: 2.0, step: 0.05, label: 'Energy speed' },
       formulaBeatKick: { value: initial.formulaBeatKick, min: 0.0, max: 1.5, step: 0.05, label: 'Beat kick' },
       formulaBandWarp: { value: initial.formulaBandWarp, min: 0.0, max: 3.0, step: 0.05, label: 'Band warp' },
+      recordScale: { value: initial.recordScale, min: 1, max: 3, step: 1, label: 'Record scale' },
+      recordFps: { value: initial.recordFps, min: 24, max: 60, step: 1, label: 'Record fps' },
     }, { collapsed: true }),
     Particles: folder({
       visualMode: { value: initial.visualMode, options: VISUAL_MODES, label: 'Visual mode' },

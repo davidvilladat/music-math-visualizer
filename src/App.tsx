@@ -22,6 +22,11 @@ import {
   serializePresetQuery,
 } from './state/visualPreset'
 import type { Renderer } from './render/renderer'
+import {
+  SessionRecorder,
+  downloadRecording,
+  recordingFilename,
+} from './capture/SessionRecorder'
 
 type VisualMode = DevParams['visualMode']
 
@@ -45,6 +50,11 @@ export function App() {
   const [shareLabel, setShareLabel] = useState<string | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
   const [renderer, setRenderer] = useState<Renderer | null>(null)
+  const recorderRef = useRef<SessionRecorder | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [recordBusy, setRecordBusy] = useState(false)
+  const [recordElapsedMs, setRecordElapsedMs] = useState(0)
+  const [recordNotice, setRecordNotice] = useState<string | null>(null)
 
   const setTrack = useStore((state) => state.setTrack)
   const setPlaying = useStore((state) => state.setPlaying)
@@ -215,6 +225,70 @@ export function App() {
     setSourceState({ status: 'idle', initialTab: 'soundcloud' })
   }, [stopAllSources])
 
+  // The elapsed readout is the only sign the capture is still running, so it
+  // ticks off a timer rather than off the render loop.
+  useEffect(() => {
+    if (!recording) return
+    const id = window.setInterval(() => {
+      setRecordElapsedMs(recorderRef.current?.elapsedMs ?? 0)
+    }, 250)
+    return () => window.clearInterval(id)
+  }, [recording])
+
+  useEffect(() => () => recorderRef.current?.dispose(), [])
+
+  const flashRecordNotice = useCallback((message: string) => {
+    setRecordNotice(message)
+    window.setTimeout(() => setRecordNotice(null), 4000)
+  }, [])
+
+  const toggleRecord = useCallback(async () => {
+    const activeRenderer = rendererRef.current
+    if (!activeRenderer || recordBusy) return
+
+    const recorder = recorderRef.current ?? new SessionRecorder()
+    recorderRef.current = recorder
+
+    if (recorder.isRecording) {
+      setRecordBusy(true)
+      try {
+        const result = await recorder.stop()
+        if (result) {
+          const mode = useStore.getState().devParams.visualMode
+          downloadRecording(result.blob, recordingFilename(mode, new Date(), result.format.extension))
+          // Demo mode has no audio to capture, so say so rather than let a silent
+          // file look like a bug.
+          flashRecordNotice(result.hadAudio ? 'Saved' : 'Saved (no audio)')
+        }
+      } finally {
+        // Drop back to display resolution whatever happened, or the visualizer
+        // keeps paying for the oversized buffer.
+        activeRenderer.setRenderScale(1)
+        setRecording(false)
+        setRecordBusy(false)
+        setRecordElapsedMs(0)
+      }
+      return
+    }
+
+    const { recordScale, recordFps } = useStore.getState().devParams
+    activeRenderer.setRenderScale(recordScale)
+    try {
+      recorder.start({
+        canvas: activeRenderer.canvasElement,
+        audioTracks: activeRenderer.captureAudioTracks,
+        fps: recordFps,
+      })
+      setRecordElapsedMs(0)
+      setRecording(true)
+    } catch (error) {
+      activeRenderer.setRenderScale(1)
+      // A failed recording must not tear down a working session, so this
+      // surfaces on the button rather than through the source-error path.
+      flashRecordNotice(errorMessage(error, 'Unavailable'))
+    }
+  }, [recordBusy, flashRecordNotice])
+
   const sharePreset = useCallback(async () => {
     const query = serializePresetQuery(presetFromDevParams(useStore.getState().devParams))
     const url = `${window.location.origin}${window.location.pathname}${query}`
@@ -250,7 +324,16 @@ export function App() {
 
       {sourceState.status === 'active' && (
         <>
-          <TopBar onChangeSource={changeSource} onSharePreset={() => void sharePreset()} shareLabel={shareLabel} />
+          <TopBar
+            onChangeSource={changeSource}
+            onSharePreset={() => void sharePreset()}
+            shareLabel={shareLabel}
+            onToggleRecord={() => void toggleRecord()}
+            recording={recording}
+            recordElapsedMs={recordElapsedMs}
+            recordBusy={recordBusy}
+            recordNotice={recordNotice}
+          />
           {debugVisible && <DevPanel />}
           <DebugOverlay renderer={renderer} />
           <ModeHUD />
