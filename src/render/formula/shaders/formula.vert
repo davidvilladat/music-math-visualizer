@@ -1143,6 +1143,74 @@ vec2 trefoilFormula(float raw, out float tip, out float core) {
   return vec2(px - 200.0, -(py - 200.0));
 }
 
+// Beacon: the two halves of one sweep, set apart in the angle that carries it
+// around, looking for each other. The source draws a single figure; the split
+// here is a phase offset by index parity, the same device Tandem uses. What
+// differs is that the offset does not hold -- it swings from a half turn down
+// to almost nothing and back, so the pair spends the cycle drifting apart,
+// closing, brushing past and parting again. Neither one tracks the other: the
+// search is a single cosine on the separation, and everything that reads as
+// looking falls out of it.
+vec2 beaconFormula(float raw, out float tip, out float core) {
+  // The source steps t by PI/60 a frame where this clock runs at PI/240.
+  float t = uTime * (240.0 / 60.0);
+
+  float layer = floor(raw / 10000.0);
+  float local = mod(raw, 10000.0);
+  // Four offset copies of the source's own 10k sweep, the offset kept inside a
+  // single index step so it thickens the strands rather than drawing the pair
+  // four times over.
+  float i = local + layer * 0.25;
+
+  // Read off the whole index, so every copy of a point belongs to the same one
+  // of the two.
+  float who = mod(local, 2.0);
+
+  float y = i / 295.0;
+  float k = 4.0 * cos(i / 29.0);
+  float e = y / 5.0 - 13.0;
+  float d = length(vec2(k, e)) - 4.0;
+
+  // The separation never quite reaches zero: they pass close enough to read as
+  // one figure for a few frames and then draw apart again, which is the whole
+  // subject. A swelling section pulls the closest approach tighter, so the
+  // track decides how near they get.
+  float closing = clamp(uSectionEnergy * 0.22 * uReactivity, 0.0, 0.34);
+  float apart = 3.14159265 * (0.55 + 0.45 * cos(t / 9.0)) * (1.0 - closing);
+
+  float q = d * d / 0.7 - k * k * 2.0 + y;
+  // Split symmetrically about the sweep's own angle rather than holding one in
+  // place and swinging the other around it. Offsetting just one moves the pair's
+  // centre with the separation, which walked the whole figure into a corner at
+  // the near end of the cycle; straddling it keeps them framed as they close.
+  // It is also the truer reading of the source, which is this with apart at 0.
+  float c = d - t / 3.0 + (who - 0.5) * apart;
+
+  // Antiphase between the two, so one is reaching while the other draws in
+  // rather than both breathing on the same beat.
+  float reach = y / 9.0 * k * (3.0 + sin(e * 9.0 - d * 3.0 + t + who * 3.14159265));
+
+  float px = q * cos(c) + 200.0;
+  // cos(y)/k is a real singularity -- k crosses zero about a hundred times
+  // across the sweep -- and it is left as one, the way Triad leaves its own.
+  // The guard catches the exact-zero case; the rest clips against the viewport
+  // as it did in the source.
+  float py = 3.0 * sin(k * 2.0) + cos(y) * signedInv(k, 0.004) + reach
+           + 79.0 * sin(c / 3.0) + 200.0 + d * d / 3.0 * cos(t - d * d / 9.0);
+
+  vec2 p = vec2(px - 200.0, -(py - 200.0));
+
+  core = smoothstep(2.6, 4.4, d) * (1.0 - smoothstep(7.4, 9.2, d));
+  // The gap is the subject, so it is what the accent is keyed to: the light
+  // comes up across both as the separation closes, and is brightest in the few
+  // frames where they nearly touch.
+  float reunion = 1.0 - smoothstep(0.0, 3.14159265 * 0.62, apart);
+  tip = clamp(smoothstep(120.0, 178.0, length(p)) * 0.55
+            + smoothstep(0.62, 0.99, abs(sin(c * 2.0))) * 0.20
+            + reunion * 0.28, 0.0, 1.0);
+  return p;
+}
+
 vec2 attractorFormula(float raw, out float tip, out float core) {
   float x = 1.0 + (hash(raw * 1.7) - 0.5) * 0.05;
   float y = 1.0 + (hash(raw * 2.3 + 11.0) - 0.5) * 0.05;
@@ -1683,8 +1751,10 @@ void main() {
     p = tandemFormula(raw, tip, core);
   } else if (uVariant < 40.5) {
     p = triadFormula(raw, tip, core);
-  } else {
+  } else if (uVariant < 41.5) {
     p = trefoilFormula(raw, tip, core);
+  } else {
+    p = beaconFormula(raw, tip, core);
   }
 
   float beatEnvelope = exp(-uBeatPhase * 6.5);
@@ -1772,14 +1842,18 @@ void main() {
   // Set off the 99.5th percentile of reach rather than the absolute maximum:
   // the outermost half-percent only appears at the peak of the sway, and framing
   // for it would leave every other phase sitting small.
-  else baseScale = 186.0;
+  else if (uVariant < 41.5) baseScale = 186.0;
+  // Framed off the reach of the radius term rather than the singular streaks:
+  // cos(y)/k throws a handful of samples well past the frame on every pass, and
+  // scaling to hold those would leave the pair small for the whole cycle.
+  else baseScale = 182.0;
   float scale = baseScale / max(uZoom, 0.01);
   vec2 ndc = p / scale;
   if ((uVariant > 25.5 && uVariant < 27.5) || uVariant > 32.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
   gl_Position = vec4(ndc, 0.0, 1.0);
 
   float grain = hash(scatterIndex * 3.17 + scatterLayer * 23.0);
-  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 40.5 ? 1.44 : uVariant > 39.5 ? 1.50 : uVariant > 38.5 ? 1.52 : uVariant > 37.5 ? 1.74 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
+  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 41.5 ? 1.46 : uVariant > 40.5 ? 1.44 : uVariant > 39.5 ? 1.50 : uVariant > 38.5 ? 1.52 : uVariant > 37.5 ? 1.74 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
   float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp
                   + beatDrive * 0.18 + uHatPulse * 0.42 * uBeatGate
                   + uOnsetDensity * uTrackDNA1.y * 0.16 + grain * 0.26) * thickness;
@@ -1876,13 +1950,26 @@ void main() {
     col = mix(col, trio, 0.68);
     col = mix(col, vec3(1.0, 0.92, 0.80), smoothstep(0.45, 0.95, tip) * 0.42);
   }
-  if (uVariant > 40.5) {
+  if (uVariant > 40.5 && uVariant < 41.5) {
     // Same per-arm keying as Triad but off a different base, so the two siblings
     // do not read as the same picture at a glance.
     float arm = mod(mod(raw, 20000.0), 3.0);
     vec3 leaf = 0.50 + 0.50 * cos(vec3(1.1, 3.2, 5.2) + arm * 2.1 + core * 1.6 + uTime * 0.12);
     col = mix(col, leaf, 0.70);
     col = mix(col, vec3(0.92, 1.0, 0.96), smoothstep(0.45, 0.95, tip) * 0.40);
+  }
+  if (uVariant > 41.5) {
+    // Hue off which of the two a point belongs to rather than off where it
+    // landed. They cross and overlap through most of the cycle, and a
+    // positional hue would repaint whichever one happened to be in front
+    // instead of letting each keep its own colour across the pass.
+    float who = mod(mod(raw, 10000.0), 2.0);
+    vec3 pair = 0.52 + 0.48 * cos(vec3(0.0, 2.1, 4.2) + who * 2.6 + core * 1.2 + uTime * 0.12);
+    col = mix(col, pair, 0.66);
+    // tip carries the closing gap, so warming through it lands the two on one
+    // rose exactly in the frames where they are nearest: they share a colour
+    // only when they nearly meet, and separate back into their own as they part.
+    col = mix(col, vec3(1.0, 0.84, 0.88), smoothstep(0.40, 0.95, tip) * 0.44);
   }
   if (uVariant > 26.5 && uVariant < 27.5) {
     vec3 cream = vec3(1.02, 0.90, 0.72);

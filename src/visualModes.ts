@@ -53,6 +53,7 @@ const FORMULA_MODES = [
   { key: 'tandem',    label: 'Tandem',    accent: '#a5b4fc', formulaVariant: 39 },
   { key: 'triad',     label: 'Triad',     accent: '#06b6d4', formulaVariant: 40 },
   { key: 'trefoil',   label: 'Trefoil',   accent: '#bef264', formulaVariant: 41 },
+  { key: 'beacon',    label: 'Beacon',    accent: '#fda4af', formulaVariant: 42 },
 ] as const
 
 const EXTRA_MODES = [
