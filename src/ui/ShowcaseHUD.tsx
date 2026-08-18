@@ -9,7 +9,10 @@ interface Props {
 export function ShowcaseHUD({ choreography, frame }: Props) {
   const actNumber = (frame?.actIndex ?? 0) + 1
   const act = frame?.act ?? choreography.acts[0]
+  const nextAct = frame ? frame.nextAct : choreography.acts[1] ?? null
   const progress = frame?.progress ?? 0
+  // The bar tracks the act, not the song: it is the readable one on stage.
+  const actProgress = frame?.actProgress ?? 0
 
   return (
     <aside style={hud} data-testid="showcase-hud">
@@ -24,7 +27,11 @@ export function ShowcaseHUD({ choreography, frame }: Props) {
         <span>{(frame?.reactivity ?? act.reactivity).toUpperCase()}</span>
       </div>
       <div style={track}>
-        <div style={{ ...fill, width: `${progress * 100}%` }} />
+        <div style={{ ...fill, width: `${actProgress * 100}%` }} />
+      </div>
+      <div style={footLine}>
+        <span>{nextAct ? `NEXT · ${nextAct.label}` : 'FINAL ACT'}</span>
+        <span>{Math.round(progress * 100)}%</span>
       </div>
     </aside>
   )
@@ -87,6 +94,15 @@ const track: CSSProperties = {
   overflow: 'hidden',
   borderRadius: 2,
   background: 'rgba(255,255,255,0.10)',
+}
+
+const footLine: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: 6,
+  color: 'rgba(255,255,255,0.34)',
+  fontSize: 9,
+  letterSpacing: '0.08em',
 }
 
 const fill: CSSProperties = {

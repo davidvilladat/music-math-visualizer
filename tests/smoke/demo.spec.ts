@@ -4,7 +4,7 @@ test('offers the Hutchula Lorenz-to-Trefoil curated demo', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Demo', exact: true }).click()
   await expect(page.getByTestId('launch-hutchula-showcase')).toBeVisible()
-  await expect(page.getByText('8:11 · Lorenz → Trefoil · adaptive sensitivity')).toBeVisible()
+  await expect(page.getByText('8:11 · 12 acts · Lorenz → Trefoil · adaptive sensitivity')).toBeVisible()
 })
 
 test('launches the demo visualizer and switches controls', async ({ page }) => {

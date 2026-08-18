@@ -194,7 +194,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
               <div style={showcaseCard}>
                 <div style={showcaseEyebrow}>CURATED SONG DEMO</div>
                 <div style={showcaseTitle}>{HUTCHULA_CHOREOGRAPHY.artist} — {HUTCHULA_CHOREOGRAPHY.title}</div>
-                <div style={showcaseMeta}>8:11 · Lorenz → Trefoil · adaptive sensitivity</div>
+                <div style={showcaseMeta}>8:11 · 12 acts · Lorenz → Trefoil · adaptive sensitivity</div>
                 <button
                   type="button"
                   onClick={() => void onShowcase()}
