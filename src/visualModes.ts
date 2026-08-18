@@ -51,6 +51,8 @@ const FORMULA_MODES = [
   { key: 'mira',      label: 'Mira Plume', accent: '#fdba74', formulaVariant: 37 },
   { key: 'nacre',     label: 'Nacre',     accent: '#e9d5ff', formulaVariant: 38 },
   { key: 'tandem',    label: 'Tandem',    accent: '#a5b4fc', formulaVariant: 39 },
+  { key: 'triad',     label: 'Triad',     accent: '#06b6d4', formulaVariant: 40 },
+  { key: 'trefoil',   label: 'Trefoil',   accent: '#bef264', formulaVariant: 41 },
 ] as const
 
 const EXTRA_MODES = [

@@ -249,6 +249,8 @@ export class FormulaScene {
       // would let a loud passage hand back the speed the clock just gave up.
       { tempo: 0.45, energy: 0.7, bass: 1.0, mid: 1.0, high: 1.4, beat: 0.9 },
       { tempo: 1.0, energy: 1.1, bass: 1.2, mid: 1.1, high: 1.2, beat: 1.2 },
+      { tempo: 0.95, energy: 1.1, bass: 1.3, mid: 1.0, high: 1.2, beat: 1.3 },
+      { tempo: 0.8, energy: 1.0, bass: 1.1, mid: 1.1, high: 1.3, beat: 1.0 },
     ]
     return profiles[Math.max(0, Math.min(profiles.length - 1, Math.round(variant)))]
   }

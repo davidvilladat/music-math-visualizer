@@ -1039,6 +1039,87 @@ vec2 tandemFormula(float raw, out float tip, out float core) {
   return p;
 }
 
+// The frame Triad and Trefoil share: same sweep, same three arms, same angle.
+// Only the radius and the vertical assembly differ between them, so the parts
+// that must stay identical live here and cannot drift apart.
+void triadFrame(float raw, float t, out float y, out float k, out float e,
+                out float o, out float c) {
+  float layer = floor(raw / 20000.0);
+  float local = mod(raw, 20000.0);
+  // Two offset copies of the same 20k sweep, the offset kept under one index
+  // step so it thickens the strands rather than drawing the group twice.
+  y = (local + layer * 0.5) / 500.0;
+  // The amplitude halves past y = 11, which is what sets the near quarter of
+  // the sweep apart as the broad outer shell.
+  k = cos(y * 5.0) * (y < 11.0 ? 21.0 : 11.0);
+  e = y / 8.0 - 13.0;
+  o = length(vec2(k, e)) / 6.0;
+  // mod(i, 3) * 8 puts the copies near 0, 98 and 197 degrees -- eight radians
+  // apart is not a third of a turn, so they sit as a loose group rather than
+  // settling into an even rosette the way Lorenz does. Read off the whole
+  // index, so both copies of a point stay in the same arm.
+  c = o / 1.5 - e / 5.0 - t / 8.0 + mod(local, 3.0) * 8.0;
+}
+
+// Triad. cos(y)/k is a real singularity: k is cos(5y) scaled, so it crosses zero
+// about sixty times across the sweep. Almost no sample lands close enough to
+// matter -- around three points a frame leave the canvas in the original -- so
+// this reads as the occasional streak rather than as Nautilus' standing sprays.
+// The guard catches only the exact-zero case and the rest clips against the
+// viewport.
+vec2 triadFormula(float raw, out float tip, out float core) {
+  // The source steps t by PI/45 a frame where this clock runs at PI/240.
+  float t = uTime * (240.0 / 45.0);
+  float y, k, e, o, c;
+  triadFrame(raw, t, y, k, e, o, c);
+
+  float q = k * 2.0 + 49.0
+          + cos(y) * signedInv(k, 0.004)
+          + k * cos(y / 2.0) * (1.0 + sin(o * 4.0 - e / 2.0 - t));
+
+  float px = q * sin(c) + 200.0;
+  // The source hangs this one off 230 rather than the canvas centre, and rocks
+  // it with a half-rate term; both are kept so the group sits as it was framed.
+  float py = 230.0 + q * cos(c) - 79.0 * sin(c / 2.0);
+
+  core = smoothstep(1.4, 2.6, o) * (1.0 - smoothstep(3.5, 4.2, o));
+  tip = clamp(smoothstep(115.0, 190.0, abs(q)) * 0.75
+            + smoothstep(0.62, 0.99, abs(sin(c * 1.5))) * 0.22, 0.0, 1.0);
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+// Trefoil: Triad's frame with the radius rewritten. One change decides its whole
+// character -- cos(y)/k becomes cos(19/k). The first is a singularity worth
+// hundreds of pixels; the second is bounded to +/-1 however small k gets, so
+// Triad's streaks are simply absent and the arms close into lobes. What 19/k
+// does instead is oscillate faster and faster as k approaches zero, aliasing
+// against the sample spacing into a fine speckle at each crossing.
+//
+// That argument runs to ~1e10 in the original, where cos is noise; float here
+// would lose the value entirely, so the guard also caps the argument near 4750.
+// Both land as speckle, which is all this term contributes either way.
+vec2 trefoilFormula(float raw, out float tip, out float core) {
+  float t = uTime * (240.0 / 45.0);
+  float y, k, e, o, c;
+  triadFrame(raw, t, y, k, e, o, c);
+
+  float q = k * 2.0 + 49.0
+          + cos(19.0 * signedInv(k, 0.004))
+          + k * cos(y / 2.0) * (1.0 + sin(o * 4.0 - e * 2.0 - t));
+
+  float px = q * sin(c) + 200.0;
+  // Centred on the canvas rather than hung below it, and rocked at a third of
+  // the angle instead of a half, so this one sways where Triad tips.
+  float py = 200.0 + q * cos(c) - 79.0 * sin(c / 3.0);
+
+  core = smoothstep(1.4, 2.6, o) * (1.0 - smoothstep(3.5, 4.2, o));
+  // q never spikes here, so the accent is set from where the bounded radius
+  // actually reaches rather than from Triad's much higher threshold.
+  tip = clamp(smoothstep(88.0, 140.0, abs(q)) * 0.70
+            + smoothstep(0.62, 0.99, abs(sin(c * 1.5))) * 0.24, 0.0, 1.0);
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
 vec2 attractorFormula(float raw, out float tip, out float core) {
   float x = 1.0 + (hash(raw * 1.7) - 0.5) * 0.05;
   float y = 1.0 + (hash(raw * 2.3 + 11.0) - 0.5) * 0.05;
@@ -1575,8 +1656,12 @@ void main() {
     // one scale on it slows the whole thing coherently rather than damping the
     // parts unevenly.
     p = nautilusFormula(raw, 0.75, tip, core, sweep);
-  } else {
+  } else if (uVariant < 39.5) {
     p = tandemFormula(raw, tip, core);
+  } else if (uVariant < 40.5) {
+    p = triadFormula(raw, tip, core);
+  } else {
+    p = trefoilFormula(raw, tip, core);
   }
 
   float beatEnvelope = exp(-uBeatPhase * 6.5);
@@ -1654,14 +1739,19 @@ void main() {
   // original did too.
   else if (uVariant < 37.5) baseScale = 200.0;
   else if (uVariant < 38.5) baseScale = 178.0;
-  else baseScale = 195.0;
+  else if (uVariant < 39.5) baseScale = 195.0;
+  else if (uVariant < 40.5) baseScale = 162.0;
+  // Set off the 99.5th percentile of reach rather than the absolute maximum:
+  // the outermost half-percent only appears at the peak of the sway, and framing
+  // for it would leave every other phase sitting small.
+  else baseScale = 186.0;
   float scale = baseScale / max(uZoom, 0.01);
   vec2 ndc = p / scale;
   if ((uVariant > 25.5 && uVariant < 27.5) || uVariant > 32.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
   gl_Position = vec4(ndc, 0.0, 1.0);
 
   float grain = hash(scatterIndex * 3.17 + scatterLayer * 23.0);
-  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 38.5 ? 1.52 : uVariant > 37.5 ? 1.74 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
+  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 40.5 ? 1.44 : uVariant > 39.5 ? 1.50 : uVariant > 38.5 ? 1.52 : uVariant > 37.5 ? 1.74 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
   float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp + beatDrive * 0.18 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
@@ -1731,7 +1821,7 @@ void main() {
     // as separate from it where they cross.
     col = mix(col, vec3(0.60, 0.85, 1.0), smoothstep(0.45, 0.95, tip) * 0.48);
   }
-  if (uVariant > 38.5) {
+  if (uVariant > 38.5 && uVariant < 39.5) {
     // Hue off the angle the point sits at. The two halves are three radians
     // apart in exactly that angle, so they come out in near-opposite hues and
     // read as a pair holding a gap rather than as one blob split in two.
@@ -1739,6 +1829,24 @@ void main() {
     vec3 duet = 0.54 + 0.46 * cos(vec3(0.0, 2.1, 4.2) + around * 1.1 + uTime * 0.25);
     col = mix(col, duet, 0.66);
     col = mix(col, vec3(1.0, 0.94, 0.86), smoothstep(0.45, 0.95, tip) * 0.38);
+  }
+  if (uVariant > 39.5 && uVariant < 40.5) {
+    // One hue per arm, keyed off the same mod(i, 3) that fans them out rather
+    // than off screen angle -- the arms sweep through a wide range of angles
+    // each, so hueing by position would grade within an arm instead of
+    // separating the three where they overlap.
+    float arm = mod(mod(raw, 20000.0), 3.0);
+    vec3 trio = 0.52 + 0.48 * cos(vec3(0.0, 2.1, 4.2) + arm * 2.1 + core * 1.3 + uTime * 0.18);
+    col = mix(col, trio, 0.68);
+    col = mix(col, vec3(1.0, 0.92, 0.80), smoothstep(0.45, 0.95, tip) * 0.42);
+  }
+  if (uVariant > 40.5) {
+    // Same per-arm keying as Triad but off a different base, so the two siblings
+    // do not read as the same picture at a glance.
+    float arm = mod(mod(raw, 20000.0), 3.0);
+    vec3 leaf = 0.50 + 0.50 * cos(vec3(1.1, 3.2, 5.2) + arm * 2.1 + core * 1.6 + uTime * 0.12);
+    col = mix(col, leaf, 0.70);
+    col = mix(col, vec3(0.92, 1.0, 0.96), smoothstep(0.45, 0.95, tip) * 0.40);
   }
   if (uVariant > 26.5 && uVariant < 27.5) {
     vec3 cream = vec3(1.02, 0.90, 0.72);

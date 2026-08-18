@@ -170,7 +170,7 @@ test('launches the head-to-head Gaze formula from a shared preset', async ({ pag
 })
 
 // The later formulas share one launch check rather than copies of the same block.
-for (const mode of ['wake', 'mirror', 'waltz', 'seraph', 'mandelbrot', 'nautilus', 'frond', 'lorenz', 'mira', 'nacre', 'tandem'] as const) {
+for (const mode of ['wake', 'mirror', 'waltz', 'seraph', 'mandelbrot', 'nautilus', 'frond', 'lorenz', 'mira', 'nacre', 'tandem', 'triad', 'trefoil'] as const) {
   test(`launches the ${mode} formula from a shared preset`, async ({ page }) => {
     const consoleErrors: string[] = []
     page.on('console', (message) => {
