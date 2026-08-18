@@ -741,65 +741,100 @@ vec2 chromaSeraphFormula(float raw, out float tip, out float core) {
 // copy keeps the canonical right-facing cusp while the right copy is reflected,
 // so their cusps face across a shared hub. Escape time controls density and
 // colour emphasis; a shared rotation turns the pair as one body.
+// Principal square root of a complex number, written without atan so the branch
+// stays stable as the imaginary part crosses zero.
+vec2 csqrt(vec2 w) {
+  float r = length(w);
+  float a = sqrt(max(0.5 * (r + w.x), 0.0));
+  float b = sqrt(max(0.5 * (r - w.x), 0.0));
+  return vec2(a, w.y < 0.0 ? -b : b);
+}
+
 vec2 mandelbrotTwinsFormula(float raw, out float tip, out float core, out float mask) {
+  // Drawn by inverse iteration rather than by escape time. Running z -> z*z + c
+  // forwards and plotting the orbit gives nothing usable here: the map is
+  // chaotic, so consecutive iterates land far apart and the result is stipple.
+  // Run backwards, z -> +/-sqrt(z - c), and every step contracts onto the Julia
+  // set instead, so the points land along its filaments -- which is both the
+  // house style and, taken level by level, the fractal's own construction.
+  //
+  // Each level doubles the number of preimages, so sweeping a depth frontier
+  // through the tree is literally watching the fractal increase: 2 points, then
+  // 4, then 8, the dendrite thickening and reaching further with every level.
+  const float MAX_DEPTH = 14.0;
+
   float side = raw < 30000.0 ? -1.0 : 1.0;
   float local = mod(raw, 30000.0);
 
-  // A deterministic scattered sample avoids imposing a rectangular grid on the
-  // fractal. Both halves reuse local, making the twins geometrically identical.
-  float u = hash(local * 1.371 + 3.1);
-  float v = hash(local * 2.713 + 19.7);
-  vec2 c = vec2(-2.15 + 3.0 * u, -1.25 + 2.5 * v);
-  vec2 z = vec2(0.0);
-  float escapeIter = 64.0;
-  float escaped = 0.0;
+  // Index -> (depth, path). Level d holds 2^d points and starts at 2^d - 2, so
+  // one log recovers the level and the remainder is the branch word.
+  float depth = min(floor(log2(local + 2.0)), MAX_DEPTH);
+  float path = local + 2.0 - exp2(depth);
 
-  for (int iter = 0; iter < 64; iter++) {
-    if (escaped < 0.5) {
-      z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
-      if (dot(z, z) > 4.0) {
-        escapeIter = float(iter + 1);
-        escaped = 1.0;
-      }
+  // c rides the main cardioid, just inside it. The margin is what decides the
+  // whole character: leave the cardioid and the Julia set breaks into dust that
+  // renders as scattered specks, while sitting well inside it (0.96) gives a
+  // smooth loop whose deeper levels only add density. Hugging the boundary keeps
+  // the set connected while its dimension climbs toward 2, so it is one
+  // continuous curve wrinkled at every scale -- and each new level of the tree
+  // resolves finer wrinkles, which is the growth this visual is about.
+  float theta = uTime * 0.045 + uPhrasePhase * 0.35 * uTempoLock;
+  vec2 e1 = vec2(cos(theta), sin(theta));
+  vec2 e2 = vec2(cos(2.0 * theta), sin(2.0 * theta));
+  vec2 c = (0.5 * e1 - 0.25 * e2) * 0.998;
+
+  // Start at the repelling fixed point, which the backward map pushes away from
+  // and onto the set.
+  vec2 z = 0.5 * (vec2(1.0, 0.0) + csqrt(vec2(1.0, 0.0) - 4.0 * c));
+
+  for (int k = 0; k < 14; k++) {
+    if (float(k) < depth) {
+      vec2 root = csqrt(z - c);
+      // Bit k of the path picks the branch, so each point is one exact leaf of
+      // the preimage tree rather than a random walk that only lands near it.
+      float bit = mod(floor(path / exp2(float(k))), 2.0);
+      z = bit < 0.5 ? -root : root;
     }
   }
 
-  // Continuous escape time removes the hard integer bands around the boundary.
-  float smoothIter = escapeIter;
-  if (escaped > 0.5) {
-    float logRadius = log(max(length(z), 2.0001));
-    smoothIter = escapeIter + 1.0 - log(max(logRadius, 0.0001)) / log(2.0);
-  }
-  float dwell = clamp(smoothIter / 64.0, 0.0, 1.0);
+  // The frontier sweeps through the levels, swelling and retracting so the cycle
+  // has no reset to pop through.
+  float growCycle = mix(fract(uTime * 0.05), uPhrasePhase, uTempoLock);
+  float grow = 0.5 - 0.5 * cos(6.2831853 * growCycle);
+  float reveal = 3.0 + grow * MAX_DEPTH;
+  float ahead = depth - reveal;
+  float behind = 1.0 - smoothstep(0.0, 1.6, ahead);
 
-  vec2 m = c + vec2(0.65, 0.0);
-  float boundaryWave = sin(smoothIter * 0.32 + uTime * 0.70);
-  m *= 1.0 + boundaryWave * 0.018 * (0.35 + dwell * 0.65);
+  vec2 m = z * 62.0;
+  m.x *= -side;              // the cusp points inward on both copies
 
-  // Mirror only x: the familiar Mandelbrot cusp points inward on both copies.
-  m.x *= -side;
-  m *= 30.0;
   float partnerRock = sin(uBarPhase * 6.2831853) * 0.055 * uTempoLock;
   m = rotate2(m, side * partnerRock);
 
-  float radius = 50.0
-               + uBass * 7.0 * uBandWarp * uReactivity
-               + uBarPulse * 4.0 * uReactivity * uBeatGate;
+  float radius = 40.0
+               + uBass * 8.0 * uBandWarp * uReactivity
+               + uBarPulse * 5.0 * uReactivity * uBeatGate;
   vec2 p = m + vec2(side * radius, 0.0);
 
   float spin = uTime * 0.16 + uSectionEnergy * 0.28 * uReactivity;
   p = rotate2(p, spin);
 
-  // Quickly escaping samples remain as a very faint surrounding constellation;
-  // long-dwelling and interior samples carry the recognizable fractal body.
-  mask = 0.025 + 0.975 * smoothstep(0.06, 0.72, dwell);
-  float escapeBand = 0.5 + 0.5 * cos(smoothIter * 0.72 - uTime * 1.10);
-  tip = escaped * smoothstep(0.34, 0.96, dwell) * smoothstep(0.40, 0.92, escapeBand)
-      + (1.0 - escaped) * 0.12;
-  core = mix(smoothstep(0.06, 0.82, dwell), 0.88, 1.0 - escaped);
+  // Every level stays present, faintly, rather than being cut away ahead of the
+  // frontier. The tree is exponential -- level d holds 2^d points -- so a hard
+  // cutoff leaves 2^reveal points on screen, which is a near-empty frame for
+  // most of the cycle and the whole fractal only at the peak. Holding a floor
+  // keeps the figure legible throughout while the sweep still lights each level
+  // as it is reached; since the deepest levels carry almost all the points, what
+  // reads is the fine detail blooming in.
+  mask = 0.22 + 0.78 * behind;
+
+  // The level currently being added carries the accent.
+  float frontier = exp(-ahead * ahead * 0.75);
+  core = 1.0 - smoothstep(0.30, 1.60, length(z));
+  tip = clamp(frontier * 0.75 + core * 0.20, 0.0, 1.0);
 
   float hub = 1.0 - smoothstep(8.0, 44.0, length(p));
-  tip = clamp(tip + hub * 0.24, 0.0, 1.0);
+  tip = clamp(tip + hub * 0.20, 0.0, 1.0);
   return p;
 }
 
@@ -1393,7 +1428,7 @@ void main() {
   else if (uVariant < 30.5) baseScale = 128.0;
   else if (uVariant < 31.5) baseScale = 135.0;
   else if (uVariant < 32.5) baseScale = 130.0;
-  else baseScale = 126.0;
+  else baseScale = 120.0;
   float scale = baseScale / max(uZoom, 0.01);
   vec2 ndc = p / scale;
   if ((uVariant > 25.5 && uVariant < 27.5) || uVariant > 32.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
