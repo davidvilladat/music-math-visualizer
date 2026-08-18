@@ -45,6 +45,10 @@ const FORMULA_MODES = [
   { key: 'waltz',     label: 'Waltz',     accent: '#818cf8', formulaVariant: 31 },
   { key: 'seraph',    label: 'Seraph',    accent: '#e879f9', formulaVariant: 32 },
   { key: 'mandelbrot', label: 'Mandelbrot Twins', accent: '#a78bfa', formulaVariant: 33 },
+  { key: 'nautilus',  label: 'Nautilus',  accent: '#facc15', formulaVariant: 34 },
+  { key: 'frond',     label: 'Frond',     accent: '#4ade80', formulaVariant: 35 },
+  { key: 'lorenz',    label: 'Lorenz Rosette', accent: '#f43f5e', formulaVariant: 36 },
+  { key: 'mira',      label: 'Mira Plume', accent: '#fdba74', formulaVariant: 37 },
 ] as const
 
 const EXTRA_MODES = [

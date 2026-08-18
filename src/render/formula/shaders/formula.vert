@@ -1,6 +1,12 @@
 precision highp float;
 
 attribute float aIndex;
+// Lorenz Rosette only: one step of the CPU-integrated trajectory. See
+// lorenzFormula for why this cannot be computed in the shader.
+attribute vec3  aLorenz;
+// Mira Plume only: one step of the CPU-walked Gumowski-Mira orbit, for the same
+// reason aLorenz exists.
+attribute vec2  aMira;
 
 uniform float uTime;
 uniform float uVariant;
@@ -838,6 +844,155 @@ vec2 mandelbrotTwinsFormula(float raw, out float tip, out float core, out float 
   return p;
 }
 
+// Nautilus: unlike the grid-sampled fields above, this one sweeps a single
+// parameter, so the point set is one continuous curve rather than a surface --
+// wound into a scroll by the fast cos in k running against the slow ramp in e.
+// The parity term shifts every other index three radians along that curve,
+// which is what splits the scroll into two lobes instead of leaving one.
+//
+// sin(e/2) passes through zero twice across the sweep, and the division by it
+// throws two near-vertical sprays off the body. Those are the figure, not an
+// artefact of it, so the guard only catches the exact-zero case and the rest is
+// left to run off-frame -- clipped by the viewport exactly as the original was
+// clipped by its canvas.
+vec2 nautilusFormula(float raw, out float tip, out float core) {
+  // The source advances t by PI/80 a frame where this clock runs at PI/240, so
+  // the phase terms read a tripled clock to keep the original tempo.
+  float t = uTime * 3.0;
+
+  float layer = floor(raw / BASE_COUNT);
+  float idx = mod(raw, BASE_COUNT);
+  // Four offset copies of the same 10k sweep. The offset stays well under one
+  // index step so it thickens each strand rather than drawing four figures.
+  float i = idx + layer * 0.25;
+
+  float y = i / 253.0;
+  float k = 5.0 * cos(i / 44.0);
+  float e = y / 2.0 - 15.0;
+  float d = length(vec2(k, e)) / 3.0;
+
+  // Parity is read off the whole index, so all four copies of a point land in
+  // the same lobe instead of the offset smearing them across both.
+  float c = d / 2.0 - t / 3.0 + mod(idx, 2.0) * 3.0;
+
+  float spray = y * k * e * signedInv(77.0 * sin(e / 2.0), 0.6);
+
+  float px = (79.0 + d * d + k * k) * sin(c) + 200.0
+           + d * d * d / 4.0 * cos(t * 3.0 - d * d / 4.0);
+  float py = 99.0 * cos(c / 2.0) + 4.0 * sin(k * 2.0) + spray + 200.0;
+
+  // The sprays carry the accent; the scroll itself is graded by how far out in
+  // the sweep the point sits.
+  tip = clamp(smoothstep(55.0, 240.0, abs(spray)) * 0.88
+            + smoothstep(0.62, 0.99, abs(sin(c))) * 0.22, 0.0, 1.0);
+  core = smoothstep(1.5, 3.4, d) * (1.0 - smoothstep(4.4, 5.4, d));
+  return vec2(px - 200.0, -(py - 200.0));
+}
+
+// Frond: the source writes the amplitude switch as sin(y^9), and ^ in JS is a
+// bitwise XOR on the truncated value rather than a power -- so that term is a
+// step function of floor(y), constant across each unit band. That is what gives
+// the figure its stacked segments instead of a smooth taper, so it is worth
+// reproducing exactly rather than smoothing: 9 is 1001b, and over the 0..6 range
+// the branch admits, XOR by it just flips bit 0 and sets bit 3.
+vec2 frondFormula(float raw, out float tip, out float core) {
+  // The source steps t by PI/90 a frame where this clock runs at PI/240.
+  float t = uTime * (240.0 / 90.0);
+
+  float layer = floor(raw / BASE_COUNT);
+  float idx = mod(raw, BASE_COUNT);
+  // Four offset copies of the same 10k sweep, the offset kept well under one
+  // index step so it thickens each strand rather than drawing four figures.
+  float i = idx + layer * 0.25;
+
+  float y = i / 790.0;
+  float band = floor(y);
+  float bandXorNine = 8.0 + (mod(band, 2.0) < 0.5 ? band + 1.0 : band - 1.0);
+  float amp = y < 7.0 ? 8.0 + sin(bandXorNine) * 6.0 : 4.0 + cos(y);
+
+  float k = amp * cos(i + t / 2.0);
+  float e = y / 2.0 - 13.0;
+  float d = length(vec2(k, e));
+
+  float q = y * k / 5.0 * (2.0 + sin(d * 2.0 + y - t * 4.0)) + 80.0;
+  // Parity is read off the whole index, so all four copies of a point land on
+  // the same frond instead of the offset smearing them across both.
+  float c = d / 4.0 - t / 2.0 + mod(idx, 2.0) * 3.0;
+
+  float px = q * cos(c) * cos(c / 2.0 + e / 8.0) + 200.0;
+  float py = q * d / 8.0 * sin(c) + 200.0;
+
+  vec2 p = vec2(px - 200.0, -(py - 200.0));
+  tip = clamp(smoothstep(105.0, 195.0, length(p)) * 0.80
+            + smoothstep(0.72, 0.995, abs(sin(c))) * 0.20, 0.0, 1.0);
+  core = smoothstep(6.5, 13.0, d) * (1.0 - smoothstep(17.0, 20.0, d));
+  return p;
+}
+
+// Lorenz Rosette: the source integrates the Lorenz system inside the same loop
+// that draws it, so each sample depends on the one before it and there is
+// nothing for a vertex shader to parallelise -- every point would have to replay
+// the whole run. The trajectory is identical every frame though, since only the
+// projection reads the clock, so it is integrated once on the CPU and arrives
+// here as an attribute and the shader is left with just the projection.
+//
+// mod(i, 9) is what makes it a rosette: it fans that one trajectory into nine
+// copies set eight radians apart, each breathing on its own phase.
+vec2 lorenzFormula(float raw, out float tip, out float core) {
+  // The source counts frames, and this clock advances PI/240 a frame, so a
+  // frame count is uTime * 240/PI and both phase rates fall out of it.
+  float sweep = uTime * 12.0;   // frames * PI/20
+  float turn  = uTime * 0.5;    // frames * PI/480
+
+  // The source counts i down from 30000, so the arm a sample belongs to is read
+  // off the descending index rather than the ascending one.
+  float arm = mod(29999.0 - raw, 9.0);
+
+  float e = sin(sweep - aLorenz.x * aLorenz.x / 99.0 + arm) + 1.0;
+  float q = aLorenz.x * e + 89.0;
+  float k = aLorenz.z / 59.0 - e / 29.0 + turn + arm * 8.0;
+
+  float px = q * cos(k) + 200.0;
+  float py = 200.0 - (q + 60.0 * cos(k / 2.0)) * sin(k);
+
+  vec2 p = vec2(px - 200.0, -(py - 200.0));
+  // Height on the attractor grades the wing, so the two lobes of each butterfly
+  // read apart instead of merging into one blob.
+  core = smoothstep(4.0, 30.0, aLorenz.z) * (1.0 - smoothstep(40.0, 50.0, aLorenz.z));
+  tip = clamp(smoothstep(1.35, 1.98, e) * 0.55
+            + smoothstep(115.0, 170.0, length(p)) * 0.45, 0.0, 1.0);
+  return p;
+}
+
+// Mira Plume: the Gumowski-Mira map. attractorFormula above already uses this
+// map's f(), but samples it as short independent orbits from scattered starts;
+// here it is the single 40k orbit the source draws, walked from (1, 1), so what
+// shows is the attractor's own woven shell rather than a cloud around it.
+//
+// Like Lorenz Rosette this is a serial recurrence with nothing for the shader to
+// parallelise, and again the orbit itself never reads the clock -- only the
+// projection wrapped around it does. So it is walked once on the CPU and arrives
+// as an attribute, and this function is just that projection.
+vec2 miraFormula(out float tip, out float core) {
+  // The source steps t by PI/45 a frame where this clock runs at PI/240.
+  float t = uTime * (240.0 / 45.0);
+
+  float radius = length(aMira);
+  float c = t - radius / 4.0;
+
+  float px = aMira.y * (5.0 * sin(c) + 11.0) + 205.0;
+  float py = aMira.x * (2.0 * cos(c) + 7.0) + 9.0 * sin(aMira.y / 4.0 + t) + 185.0;
+
+  vec2 p = vec2(px - 200.0, -(py - 200.0));
+  // c is the clock minus the orbit's own radius, so sin(c) bands the figure
+  // along that radius -- the rings read as structure in the attractor rather
+  // than as a pattern laid over the screen.
+  tip = clamp(smoothstep(112.0, 186.0, length(p)) * 0.70
+            + smoothstep(0.62, 0.99, abs(sin(c))) * 0.26, 0.0, 1.0);
+  core = smoothstep(2.0, 13.0, radius) * (1.0 - smoothstep(22.0, 27.5, radius));
+  return p;
+}
+
 vec2 attractorFormula(float raw, out float tip, out float core) {
   float x = 1.0 + (hash(raw * 1.7) - 0.5) * 0.05;
   float y = 1.0 + (hash(raw * 2.3 + 11.0) - 0.5) * 0.05;
@@ -1358,8 +1513,16 @@ void main() {
     p = chromaWaltzFormula(raw, tip, core);
   } else if (uVariant < 32.5) {
     p = chromaSeraphFormula(raw, tip, core);
-  } else {
+  } else if (uVariant < 33.5) {
     p = mandelbrotTwinsFormula(raw, tip, core, visibility);
+  } else if (uVariant < 34.5) {
+    p = nautilusFormula(raw, tip, core);
+  } else if (uVariant < 35.5) {
+    p = frondFormula(raw, tip, core);
+  } else if (uVariant < 36.5) {
+    p = lorenzFormula(raw, tip, core);
+  } else {
+    p = miraFormula(tip, core);
   }
 
   float beatEnvelope = exp(-uBeatPhase * 6.5);
@@ -1386,7 +1549,7 @@ void main() {
 
   // Reuse the same jitter and grain sample in each 30k half of Mandelbrot so
   // small rendering imperfections do not break the twin symmetry.
-  float scatterRaw = uVariant > 32.5 ? mod(raw, 30000.0) : raw;
+  float scatterRaw = (uVariant > 32.5 && uVariant < 33.5) ? mod(raw, 30000.0) : raw;
   float scatterLayer = floor(scatterRaw / BASE_COUNT);
   float scatterIndex = mod(scatterRaw, BASE_COUNT) + 1.0;
   float jitterSeed = scatterIndex + scatterLayer * 127.13;
@@ -1428,14 +1591,21 @@ void main() {
   else if (uVariant < 30.5) baseScale = 128.0;
   else if (uVariant < 31.5) baseScale = 135.0;
   else if (uVariant < 32.5) baseScale = 130.0;
-  else baseScale = 120.0;
+  else if (uVariant < 33.5) baseScale = 120.0;
+  else if (uVariant < 34.5) baseScale = 178.0;
+  else if (uVariant < 35.5) baseScale = 200.0;
+  else if (uVariant < 36.5) baseScale = 186.0;
+  // 200 is the source's own half-canvas, so the plume frames exactly as it did
+  // there -- including clipping the widest tips at full spread, which the
+  // original did too.
+  else baseScale = 200.0;
   float scale = baseScale / max(uZoom, 0.01);
   vec2 ndc = p / scale;
   if ((uVariant > 25.5 && uVariant < 27.5) || uVariant > 32.5) ndc.x /= max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
   gl_Position = vec4(ndc, 0.0, 1.0);
 
   float grain = hash(scatterIndex * 3.17 + scatterLayer * 23.0);
-  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
+  float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
   float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp + beatDrive * 0.18 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
@@ -1452,16 +1622,46 @@ void main() {
     vec3 ember = vec3(1.0, 0.34, 0.04);
     col = mix(col, ember, smoothstep(0.25, 0.95, tip) * 0.45);
   }
-  if ((uVariant > 21.5 && uVariant < 22.5) || uVariant > 27.5) {
+  if ((uVariant > 21.5 && uVariant < 22.5) || (uVariant > 27.5 && uVariant < 33.5)) {
     vec3 chroma = 0.58 + 0.42 * cos(vec3(0.0, 2.1, 4.2) + p.x * 0.018 + p.y * 0.014 + uTime);
     // The wings lean harder on the iridescence: it is what separates a wing
     // from a bright smear, and it grades along the span on its own.
     col = mix(col, chroma, uVariant > 31.5 ? 0.68 : 0.48);
   }
-  if (uVariant > 32.5) {
+  if (uVariant > 32.5 && uVariant < 33.5) {
     vec3 fractal = 0.54 + 0.46 * cos(vec3(0.2, 2.3, 4.4) + p.x * 0.026 - p.y * 0.019 + uTime * 0.42);
     col = mix(col, fractal, 0.74);
     col = mix(col, vec3(1.0, 0.30, 0.72), smoothstep(0.42, 0.94, tip) * 0.34);
+  }
+  if (uVariant > 33.5 && uVariant < 34.5) {
+    // Graded along the sweep instead of cycled through hue: the scroll only
+    // reads as one shell if the colour follows its own coordinate, where a
+    // rotating hue would cut it into bands that fight the winding.
+    vec3 shell = mix(vec3(0.20, 0.40, 0.74), vec3(1.0, 0.70, 0.26), core);
+    col = mix(col, shell, 0.62);
+    col = mix(col, vec3(1.0, 0.93, 0.70), smoothstep(0.35, 0.95, tip) * 0.70);
+  }
+  if (uVariant > 34.5 && uVariant < 35.5) {
+    // Cool at the root, warming out to the tips, so the stacked segments read as
+    // one growth rather than a stack of unrelated arcs.
+    vec3 frond = mix(vec3(0.16, 0.52, 0.44), vec3(0.72, 1.0, 0.38), core);
+    col = mix(col, frond, 0.60);
+    col = mix(col, vec3(1.0, 0.98, 0.80), smoothstep(0.40, 0.96, tip) * 0.55);
+  }
+  if (uVariant > 35.5 && uVariant < 36.5) {
+    // Each arm gets its own hue off the angle it sits at, so the nine copies
+    // separate where they overlap near the hub instead of washing to white.
+    float arm = atan(p.y, p.x);
+    vec3 petals = 0.52 + 0.48 * cos(vec3(0.0, 2.2, 4.3) + arm * 1.6 + core * 2.2);
+    col = mix(col, petals, 0.66);
+    col = mix(col, vec3(1.0, 0.88, 0.94), smoothstep(0.45, 0.96, tip) * 0.40);
+  }
+  if (uVariant > 36.5) {
+    // Banded off the orbit's own radius rather than off screen position, so the
+    // barbs keep their grading as the projection swings the whole plume about.
+    vec3 plume = 0.55 + 0.45 * cos(vec3(0.4, 2.4, 4.6) + length(aMira) * 0.26 + uTime * 0.3);
+    col = mix(col, plume, 0.60);
+    col = mix(col, vec3(1.0, 0.86, 0.60), smoothstep(0.42, 0.95, tip) * 0.45);
   }
   if (uVariant > 26.5 && uVariant < 27.5) {
     vec3 cream = vec3(1.02, 0.90, 0.72);

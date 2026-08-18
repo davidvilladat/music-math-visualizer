@@ -24,10 +24,72 @@ const DETAIL_LAYERS = 4
 const STANDARD_POINT_COUNT = BASE_POINT_COUNT * DETAIL_LAYERS
 const MANDELBROT_VARIANT = 33
 const MANDELBROT_POINT_COUNT = 60_000
+const LORENZ_VARIANT = 36
+const LORENZ_POINT_COUNT = 30_000
+const MIRA_POINT_COUNT = 40_000
 const POINT_COUNT = MANDELBROT_POINT_COUNT
 
 // t increment per second matching the original PI/240 per frame at 60 fps
 const T_RATE = Math.PI / 4   // PI/240 * 60
+
+function drawCountFor(variant: number): number {
+  if (variant === MANDELBROT_VARIANT) return MANDELBROT_POINT_COUNT
+  if (variant === LORENZ_VARIANT) return LORENZ_POINT_COUNT
+  return STANDARD_POINT_COUNT
+}
+
+// Lorenz Rosette integrates the attractor inside the loop that draws it, so
+// each sample depends on the previous one -- a recurrence the vertex shader
+// cannot unroll. The trajectory is the same on every frame, though, since only
+// its projection reads the clock, so it is run once here and handed to the
+// shader as a per-point attribute. Points past the Lorenz draw range keep the
+// zeros they were allocated with; no other variant reads the attribute.
+// Mira Plume walks the Gumowski-Mira map, and for the same reason as the Lorenz
+// orbit -- a serial recurrence whose result is identical on every frame -- it is
+// walked once here rather than in the shader. Its draw count is the standard
+// one, so no drawCountFor entry is needed.
+function miraOrbit(): Float32Array {
+  const data = new Float32Array(POINT_COUNT * 2)
+  const a = 0.003
+  const b = 0.06
+  const u = -0.8
+  const f = (v: number): number => u * v + 2 * (1 - u) * v * v / (1 + v * v)
+  let x = 1
+  let y = 1
+  for (let n = 0; n < MIRA_POINT_COUNT; n++) {
+    // The source's second element re-evaluates the same expression rather than
+    // reading the first, so both read the pre-step x and y.
+    const step = y + (1 - b * y * y) * a * y + f(x)
+    const nextY = f(step) - x
+    x = step
+    y = nextY
+    data[n * 2] = x
+    data[n * 2 + 1] = y
+  }
+  return data
+}
+
+function lorenzOrbit(): Float32Array {
+  const data = new Float32Array(POINT_COUNT * 3)
+  const dt = 5e-4
+  let x = 9
+  let y = 9
+  let z = 9
+  for (let n = 0; n < LORENZ_POINT_COUNT; n++) {
+    // Written from the pre-step values on all three axes, matching the source's
+    // simultaneous destructuring assignment rather than updating in place.
+    const nx = x + 9 * (y - x) * dt
+    const ny = y + (x * (28 - z) - y) * dt
+    const nz = z + (x * y - z - z) * dt
+    x = nx
+    y = ny
+    z = nz
+    data[n * 3] = x
+    data[n * 3 + 1] = y
+    data[n * 3 + 2] = z
+  }
+  return data
+}
 
 export class FormulaScene {
   private gl: THREE.WebGLRenderer
@@ -53,6 +115,8 @@ export class FormulaScene {
     this.geo = new THREE.BufferGeometry()
     this.geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     this.geo.setAttribute('aIndex', new THREE.BufferAttribute(indices, 1))
+    this.geo.setAttribute('aLorenz', new THREE.BufferAttribute(lorenzOrbit(), 3))
+    this.geo.setAttribute('aMira', new THREE.BufferAttribute(miraOrbit(), 2))
     this.geo.setDrawRange(0, STANDARD_POINT_COUNT)
 
     this.mat = new THREE.RawShaderMaterial({
@@ -94,7 +158,7 @@ export class FormulaScene {
   }
 
   update(dt: number, features: AudioFeatures, cfg: FormulaDevParams): void {
-    this.geo.setDrawRange(0, cfg.variant === MANDELBROT_VARIANT ? MANDELBROT_POINT_COUNT : STANDARD_POINT_COUNT)
+    this.geo.setDrawRange(0, drawCountFor(cfg.variant))
 
     const profile = this.profileFor(cfg.variant)
     const bpmRate = features.bpm && features.bpmConfidence > 0.25
@@ -176,6 +240,10 @@ export class FormulaScene {
       { tempo: 1.2, energy: 1.1, bass: 1.0, mid: 1.0, high: 1.5, beat: 1.1 },
       { tempo: 1.0, energy: 1.2, bass: 1.1, mid: 1.0, high: 1.6, beat: 1.4 },
       { tempo: 0.8, energy: 1.0, bass: 1.2, mid: 0.9, high: 1.6, beat: 1.1 },
+      { tempo: 1.0, energy: 1.1, bass: 1.3, mid: 1.0, high: 1.2, beat: 1.2 },
+      { tempo: 0.7, energy: 1.2, bass: 0.9, mid: 1.3, high: 1.4, beat: 0.9 },
+      { tempo: 1.1, energy: 1.0, bass: 1.1, mid: 1.0, high: 1.3, beat: 1.3 },
+      { tempo: 0.9, energy: 1.1, bass: 1.2, mid: 1.1, high: 1.3, beat: 1.0 },
     ]
     return profiles[Math.max(0, Math.min(profiles.length - 1, Math.round(variant)))]
   }
