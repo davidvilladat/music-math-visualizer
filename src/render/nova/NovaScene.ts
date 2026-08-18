@@ -75,7 +75,8 @@ export class NovaScene {
 
     // Beat → spawn shockwave ring (refire guard: newest ring must be old enough)
     const youngest = this.rings.reduce((a, b) => (a.age < b.age ? a : b))
-    if (features.beatPulse > RING_TRIGGER_THRESHOLD && youngest.age > RING_REFIRE_AGE) {
+    const impact = Math.max(features.beatPulse, features.kickPulse, features.downbeatPulse)
+    if (impact > RING_TRIGGER_THRESHOLD && youngest.age > RING_REFIRE_AGE) {
       const slot = this.nextRingSlot % 3
       this.rings[slot] = { radius: 0, age: 0 }
       this.nextRingSlot++
@@ -97,10 +98,10 @@ export class NovaScene {
 
     const u = this.mat.uniforms
     u.uTime.value       = this.time
-    u.uBass.value       = features.bass
-    u.uMid.value        = features.mid
-    u.uBrilliance.value = features.brilliance
-    u.uBeatPulse.value  = features.beatPulse
+    u.uBass.value       = features.normalized.bass
+    u.uMid.value        = features.normalized.mid
+    u.uBrilliance.value = features.normalized.brilliance
+    u.uBeatPulse.value  = impact
 
     u.uRing0.value.set(this.rings[0].radius, this.rings[0].age)
     u.uRing1.value.set(this.rings[1].radius, this.rings[1].age)

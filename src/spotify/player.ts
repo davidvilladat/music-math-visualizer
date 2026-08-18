@@ -110,6 +110,8 @@ export function initPlayer(): Promise<string> {
       if (!state) return
       const track = state.track_window.current_track
       useStore.getState().setTrack({
+        id:         track.id,
+        source:     'spotify',
         title:      track.name,
         artist:     track.artists.map((a) => a.name).join(', '),
         artworkUrl: track.album.images[0]?.url ?? '',

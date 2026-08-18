@@ -11,6 +11,8 @@ export { AIRCRAFT_VARIANTS, VISUAL_MODE_META }
 export type { ReactivityMode, VisualMode, VisualModeMeta }
 
 export interface TrackInfo {
+  id?: string
+  source?: 'spotify' | 'soundcloud' | 'demo'
   title: string
   artist: string
   artworkUrl: string

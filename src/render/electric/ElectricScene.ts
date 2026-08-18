@@ -133,18 +133,18 @@ export class ElectricScene {
 
     // Plasma uniforms
     this.mPlasma.uniforms.uTime.value       = this.time
-    this.mPlasma.uniforms.uBass.value       = features.bass
-    this.mPlasma.uniforms.uBrilliance.value = features.brilliance
+    this.mPlasma.uniforms.uBass.value       = features.normalized.bass
+    this.mPlasma.uniforms.uBrilliance.value = features.normalized.brilliance
     this.mPlasma.uniforms.uSpeed.value      = cfg.plasmaSpeed
     this.mPlasma.uniforms.uIntensity.value  = cfg.plasmaIntensity
 
     // Waveform uniforms
-    this.mWave.uniforms.uBass.value      = features.bass
+    this.mWave.uniforms.uBass.value      = features.normalized.bass
     this.mWave.uniforms.uAmplitude.value = cfg.waveAmplitude
     this.mWave.uniforms.uIntensity.value = cfg.waveIntensity
 
     // Beat → spawn lightning bolts
-    if (features.beatPulse > 0.5 && this.boltAge > 0.35) {
+    if (Math.max(features.beatPulse, features.snarePulse, features.hatPulse * 0.7) > 0.5 && this.boltAge > 0.35) {
       this.spawnLightning(cfg.electricLightningCount)
       this.boltAge = 0
     }

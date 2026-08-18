@@ -52,10 +52,10 @@ export class NeonScene {
     this.specTex.needsUpdate = true
 
     const u = this.mat.uniforms
-    u.uBass.value       = features.bass
-    u.uMid.value        = features.mid
-    u.uBrilliance.value = features.brilliance
-    u.uBeatPulse.value  = features.beatPulse
+    u.uBass.value       = features.normalized.bass
+    u.uMid.value        = features.normalized.mid
+    u.uBrilliance.value = features.normalized.brilliance
+    u.uBeatPulse.value  = Math.max(features.beatPulse, features.kickPulse, features.snarePulse * 0.7)
   }
 
   render(target: THREE.WebGLRenderTarget): void {

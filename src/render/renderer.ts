@@ -19,6 +19,7 @@ import {
   nextFormulaMode,
   type FormulaMode,
 } from '../visualModes'
+import { TrackDNAController } from './trackDNA'
 
 function hueToRgb(h: number): [number, number, number] {
   const h6 = (h % 1) * 6
@@ -57,6 +58,7 @@ export class Renderer {
   private formula: FormulaScene
   private aircraft: AircraftScene
   private audioInjector: AudioInjector
+  private trackDNA = new TrackDNAController()
   private engine: AudioEngine
   private demo: DemoEngine | null = null
   private renderScale = 1
@@ -184,12 +186,20 @@ export class Renderer {
       this.fpsLastTime = now
     }
 
+    const storeState = useStore.getState()
+    if (this.trackDNA.setTrack(storeState.currentTrack)) {
+      this.engine.resetForTrack()
+      this.formula.resetTrackClock(this.trackDNA.dna)
+      this.audioInjector.resetForTrack(this.trackDNA.dna.seed)
+    }
+
     // audio
     if (this.demo) {
       this.demo.tick(dt, this.features)
     } else if (this.engine.isRunning) {
       this.engine.tick(this.features)
     }
+    this.trackDNA.update(this.features, dt)
 
     // mouse splat
     if (this.mouse.down) {
@@ -207,7 +217,7 @@ export class Renderer {
     }
 
     // audio → fluid injection (only when audio is captured)
-    const { devParams } = useStore.getState()
+    const { devParams } = storeState
     const modulated = this.engine.isRunning
       ? this.audioInjector.inject(
           this.features,
@@ -281,6 +291,7 @@ export class Renderer {
         bandWarp: devParams.formulaBandWarp,
         reactivity: reactivity.visual,
         beatGate: reactivity.beatGate,
+        trackDNA: this.trackDNA.dna,
       })
       this.formula.render(this.post.sourceRT)
     } else {

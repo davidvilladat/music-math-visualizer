@@ -14,8 +14,13 @@ uniform float uZoom;
 uniform float uWaveAmp;
 uniform float uBrightness;
 uniform float uBass;
+uniform float uSubBass;
+uniform float uLowMid;
 uniform float uMid;
+uniform float uHighMid;
 uniform float uBrilliance;
+uniform float uCentroid;
+uniform float uRolloff;
 uniform float uFlux;
 uniform float uBeatPulse;
 uniform float uRms;
@@ -26,6 +31,13 @@ uniform float uBarPhase;
 uniform float uPhrasePhase;
 uniform float uBarPulse;
 uniform float uSectionEnergy;
+uniform float uKickPulse;
+uniform float uSnarePulse;
+uniform float uHatPulse;
+uniform float uDownbeatPulse;
+uniform float uOnsetDensity;
+uniform float uSectionPulse;
+uniform float uSectionNovelty;
 uniform float uReactivity;
 // 0 on the steady preset, 1 on every other: switches beat-driven motion off
 // outright rather than scaling it down, so steady never twitches on a hit.
@@ -37,6 +49,10 @@ uniform float uBeatKick;
 // phase, so a weak estimate falls back to free-running motion.
 uniform float uTempoLock;
 uniform vec4  uProfile; // bass, mid, high, beat
+// Stable per-track identity. DNA0 = hue, radius, twist, rotation direction;
+// DNA1 = phase, texture, palette spread, hashed seed.
+uniform vec4  uTrackDNA0;
+uniform vec4  uTrackDNA1;
 uniform vec2  uResolution;
 
 varying vec3  vColor;
@@ -945,25 +961,32 @@ vec2 frondFormula(float raw, out float tip, out float core) {
 vec2 lorenzFormula(float raw, out float tip, out float core) {
   // The source counts frames, and this clock advances PI/240 a frame, so a
   // frame count is uTime * 240/PI and both phase rates fall out of it.
-  float sweep = uTime * 12.0;   // frames * PI/20
-  float turn  = uTime * 0.5;    // frames * PI/480
+  float sweep = uTime * 12.0 * uTrackDNA0.z * uTrackDNA0.w;
+  float turn  = uTime * 0.5 * uTrackDNA0.w;
 
   // The source counts i down from 30000, so the arm a sample belongs to is read
   // off the descending index rather than the ascending one.
   float arm = mod(29999.0 - raw, 9.0);
 
-  float e = sin(sweep - aLorenz.x * aLorenz.x / 99.0 + arm) + 1.0;
-  float q = aLorenz.x * e + 89.0;
-  float k = aLorenz.z / 59.0 - e / 29.0 + turn + arm * 8.0;
+  float armStep = mix(7.62, 8.38, fract(uTrackDNA1.w * 17.13));
+  float e = sin(sweep - aLorenz.x * aLorenz.x / 99.0 + arm + uTrackDNA1.x) + 1.0;
+  float bassBody = (uSubBass * 0.11 + uBass * 0.07 + uKickPulse * 0.10 * uBeatGate)
+                 * uBandWarp * uReactivity;
+  float q = (aLorenz.x * e + 89.0) * uTrackDNA0.y * (1.0 + bassBody);
+  float zScale = mix(53.0, 66.0, fract(uTrackDNA1.w * 9.71));
+  float k = aLorenz.z / zScale - e / 29.0 + turn + arm * armStep;
+  k += sin(aLorenz.z * 0.11 + uTime + arm) * uLowMid * 0.10 * uBandWarp * uReactivity;
+  k += uSnarePulse * sin(arm * 2.4 + aLorenz.x * 0.08) * 0.075 * uBeatGate * uReactivity;
 
   float px = q * cos(k) + 200.0;
-  float py = 200.0 - (q + 60.0 * cos(k / 2.0)) * sin(k);
+  float lobe = 60.0 * (0.88 + uMid * 0.18 * uBandWarp * uReactivity);
+  float py = 200.0 - (q + lobe * cos(k / 2.0)) * sin(k);
 
   vec2 p = vec2(px - 200.0, -(py - 200.0));
   // Height on the attractor grades the wing, so the two lobes of each butterfly
   // read apart instead of merging into one blob.
   core = smoothstep(4.0, 30.0, aLorenz.z) * (1.0 - smoothstep(40.0, 50.0, aLorenz.z));
-  tip = clamp(smoothstep(1.35, 1.98, e) * 0.55
+  tip = clamp(smoothstep(1.35, 1.98, e) * 0.55 + uHatPulse * 0.16 * uBeatGate
             + smoothstep(115.0, 170.0, length(p)) * 0.45, 0.0, 1.0);
   return p;
 }
@@ -1667,18 +1690,23 @@ void main() {
   float beatEnvelope = exp(-uBeatPhase * 6.5);
   float phraseSwing = sin(uPhrasePhase * 6.2831853);
   float barBreath = sin(uBarPhase * 6.2831853);
-  float bassDrive = uBass * uProfile.x * uReactivity;
-  float midDrive = uMid * uProfile.y * uReactivity;
-  float highDrive = uBrilliance * uProfile.z * uReactivity;
-  float beatDrive = max(uBeatPulse, beatEnvelope * 0.36 + uBarPulse * 0.24) * uProfile.w * uReactivity * uBeatGate * uBeatKick;
+  float bassDrive = (uSubBass * 0.52 + uBass * 0.48) * uProfile.x * uReactivity;
+  float midDrive = (uLowMid * 0.34 + uMid * 0.66) * uProfile.y * uReactivity;
+  float highDrive = (uHighMid * 0.48 + uBrilliance * 0.52) * uProfile.z * uReactivity;
+  float beatDrive = max(max(uBeatPulse, uKickPulse), beatEnvelope * 0.36 + uBarPulse * 0.24)
+                  * uProfile.w * uReactivity * uBeatGate * uBeatKick;
 
   tip = clamp(tip + beatDrive * 0.12 + uBarPulse * 0.10 * uProfile.w * uBeatGate, 0.0, 1.0);
   core = clamp(core + uSectionEnergy * 0.12, 0.0, 1.0);
 
-  p = rotate2(p, phraseSwing * uSectionEnergy * 0.055 * uReactivity);
-  p *= 1.0 + (uBarPulse * 0.045 * uBeatGate + uSectionEnergy * 0.055 + bassDrive * 0.025);
+  p = rotate2(p, phraseSwing * uSectionEnergy * 0.055 * uReactivity
+                 + uSnarePulse * 0.018 * uBeatGate * uReactivity
+                 + uSectionPulse * 0.08 * uTrackDNA0.w);
+  p *= 1.0 + (uBarPulse * 0.035 * uBeatGate + uDownbeatPulse * 0.065 * uBeatGate
+            + uSectionEnergy * 0.055 + bassDrive * 0.025 + uSectionPulse * 0.045);
 
-  float audioWarp = uBandWarp * (bassDrive * 0.95 + midDrive * 0.42 + uFlux * 0.55 * uReactivity);
+  float audioWarp = uBandWarp * (bassDrive * 0.72 + midDrive * 0.46
+                                + uFlux * 0.50 * uReactivity + uSectionNovelty * 0.18);
   vec2 flowWarp = vec2(
     sin(p.y * 0.032 + uTime * (1.35 + uTempoRate * 0.35)),
     cos(p.x * 0.028 - uTime * (1.10 + uTempoRate * 0.45))
@@ -1752,7 +1780,9 @@ void main() {
 
   float grain = hash(scatterIndex * 3.17 + scatterLayer * 23.0);
   float thickness = uVariant < 0.5 ? 2.24 : uVariant < 1.5 ? 2.36 : uVariant < 2.5 ? 1.58 : uVariant > 40.5 ? 1.44 : uVariant > 39.5 ? 1.50 : uVariant > 38.5 ? 1.52 : uVariant > 37.5 ? 1.74 : uVariant > 36.5 ? 1.34 : uVariant > 35.5 ? 1.50 : uVariant > 34.5 ? 1.38 : uVariant > 33.5 ? 1.66 : uVariant > 32.5 ? 1.62 : uVariant > 27.5 ? 1.44 : uVariant > 25.5 ? 1.92 : uVariant > 24.5 ? 1.70 : 1.44;
-  float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp + beatDrive * 0.18 + grain * 0.26) * thickness;
+  float baseSize = (mix(1.18, 2.05, tip) + uRms * 0.95 + bassDrive * 0.42 * uBandWarp
+                  + beatDrive * 0.18 + uHatPulse * 0.42 * uBeatGate
+                  + uOnsetDensity * uTrackDNA1.y * 0.16 + grain * 0.26) * thickness;
   gl_PointSize = baseSize * max(uZoom, 0.55);
 
   vec3 white = vec3(1.18, 1.18, 1.12);
@@ -1763,7 +1793,13 @@ void main() {
   float ink = 0.50 + strand * 0.62 + highDrive * 0.24 * uBandWarp + core * 0.18;
   vec3 col = mix(faint, white, ink);
   col = mix(col, red, smoothstep(0.42, 0.92, tip));
+  vec3 trackColor = 0.54 + 0.46 * cos(
+    6.2831853 * (uTrackDNA0.x + vec3(0.0, 0.33, 0.67) * uTrackDNA1.z)
+    + uCentroid * 1.6 + p.x * 0.003 * uTrackDNA1.y
+  );
+  col = mix(col, trackColor, 0.18 + uTrackDNA1.z * 0.24);
   col = mix(col, vec3(1.0), uBeatPulse * 0.12 * uBeatGate);
+  col = mix(col, vec3(1.0), uHatPulse * 0.18 * uBeatGate + uSectionPulse * 0.12);
   if (uVariant > 15.5 && uVariant < 16.5) {
     vec3 ember = vec3(1.0, 0.34, 0.04);
     col = mix(col, ember, smoothstep(0.25, 0.95, tip) * 0.45);

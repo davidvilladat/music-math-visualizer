@@ -210,6 +210,8 @@ export function App() {
     destroyScPlayer()
     activeRenderer.startDemo()
     setTrack({
+      id: 'synthetic-120',
+      source: 'demo',
       title: 'Synthetic 120 BPM',
       artist: 'Demo engine',
       artworkUrl: '',

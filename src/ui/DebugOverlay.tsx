@@ -32,12 +32,17 @@ export function DebugOverlay({ renderer }: Props) {
           `BPM: ${f.bpm ? f.bpm.toFixed(1) : '--'} (${f.bpmConfidence.toFixed(2)})`,
           `Rolloff: ${f.rolloff.toFixed(3)}`,
           `Beat: ${f.beatPulse.toFixed(3)}`,
+          `Kick/Snare/Hat: ${f.kickPulse.toFixed(2)} / ${f.snarePulse.toFixed(2)} / ${f.hatPulse.toFixed(2)}`,
+          `Downbeat: ${f.downbeatPulse.toFixed(2)}`,
+          `Onset density: ${f.onsetDensity.toFixed(2)}`,
+          `Section: ${f.sectionIndex} (${f.sectionNovelty.toFixed(2)})`,
           `SubBass: ${f.subBass.toFixed(3)}`,
           `Bass: ${f.bass.toFixed(3)}`,
           `LowMid: ${f.lowMid.toFixed(3)}`,
           `Mid: ${f.mid.toFixed(3)}`,
           `HighMid: ${f.highMid.toFixed(3)}`,
           `Brilliance: ${f.brilliance.toFixed(3)}`,
+          `Normalized B/M/H: ${f.normalized.bass.toFixed(2)} / ${f.normalized.mid.toFixed(2)} / ${f.normalized.brilliance.toFixed(2)}`,
         ].join('\n')
       )
     }, 100)

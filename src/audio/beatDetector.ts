@@ -29,6 +29,15 @@ export class BeatDetector {
     this.params = { ...this.params, ...params }
   }
 
+  reset(): void {
+    this.history = []
+    this.beatTimes = []
+    this.lastBeatTime = 0
+    this.pulse = 0
+    this.bpmEstimate = null
+    this.bpmConfidenceValue = 0
+  }
+
   // returns updated beatPulse
   update(flux: number, now: number, deltaSeconds: number): number {
     const frameRate = 60

@@ -22,7 +22,50 @@ export interface AudioFeatures {
   bpm: number | null   // estimated tempo when confidence is high enough
   bpmConfidence: number // 0..1 confidence for the tempo estimate
 
+  // Percussive and structural events. Pulses jump to 1 on an event and decay
+  // back to zero, which makes them safe to map to temporary visual gestures.
+  kickPulse: number
+  snarePulse: number
+  hatPulse: number
+  downbeatPulse: number
+  onsetDensity: number // recent classified onsets per second, normalized 0..1
+  sectionPulse: number // fires when the short-term timbre diverges from its baseline
+  sectionNovelty: number
+  sectionIndex: number
+
+  // Song-relative values. Raw magnitudes vary enormously between masters;
+  // these rolling percentile-normalized channels use the visual range evenly.
+  normalized: NormalizedAudioFeatures
+
   spectrum: Float32Array // raw FFT magnitudes (FFT_SIZE/2 bins), 0..1
+}
+
+export interface NormalizedAudioFeatures {
+  subBass: number
+  bass: number
+  lowMid: number
+  mid: number
+  highMid: number
+  brilliance: number
+  rms: number
+  centroid: number
+  flux: number
+  rolloff: number
+}
+
+export function makeNormalizedAudioFeatures(): NormalizedAudioFeatures {
+  return {
+    subBass: 0,
+    bass: 0,
+    lowMid: 0,
+    mid: 0,
+    highMid: 0,
+    brilliance: 0,
+    rms: 0,
+    centroid: 0,
+    flux: 0,
+    rolloff: 0,
+  }
 }
 
 export const FFT_SIZE = 2048
@@ -49,6 +92,15 @@ export function makeAudioFeatures(): AudioFeatures {
     sectionEnergy: 0,
     bpm: null,
     bpmConfidence: 0,
+    kickPulse: 0,
+    snarePulse: 0,
+    hatPulse: 0,
+    downbeatPulse: 0,
+    onsetDensity: 0,
+    sectionPulse: 0,
+    sectionNovelty: 0,
+    sectionIndex: 0,
+    normalized: makeNormalizedAudioFeatures(),
     spectrum: new Float32Array(BIN_COUNT),
   }
 }

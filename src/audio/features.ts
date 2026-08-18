@@ -35,6 +35,26 @@ export function computeFlux(
   return flux / current.length
 }
 
+export function computeBandFlux(
+  current: Uint8Array<ArrayBuffer>,
+  previous: Uint8Array<ArrayBuffer>,
+  sampleRate: number,
+  loHz: number,
+  hiHz: number,
+): number {
+  const nyquist = sampleRate / 2
+  const lo = Math.max(0, Math.floor(loHz / nyquist * current.length))
+  const hi = Math.min(current.length, Math.ceil(hiHz / nyquist * current.length))
+  if (hi <= lo) return 0
+
+  let flux = 0
+  for (let i = lo; i < hi; i++) {
+    const delta = (current[i] - previous[i]) / 255
+    if (delta > 0) flux += delta
+  }
+  return flux / (hi - lo)
+}
+
 export function computeRolloff(
   freq: Uint8Array<ArrayBuffer>,
   _sampleRate: number,

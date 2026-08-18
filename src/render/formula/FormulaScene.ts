@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { AudioFeatures } from '../../audio/audioFeatures'
+import type { TrackDNA } from '../trackDNA'
 
 import formulaVert from './shaders/formula.vert?raw'
 import formulaFrag from './shaders/formula.frag?raw'
@@ -17,6 +18,7 @@ export interface FormulaDevParams {
   bandWarp: number
   reactivity: number
   beatGate: number
+  trackDNA: TrackDNA
 }
 
 const BASE_POINT_COUNT = 10_000
@@ -129,8 +131,13 @@ export class FormulaScene {
         uWaveAmp:    { value: 1.0 },
         uBrightness: { value: 0.45 },
         uBass:       { value: 0 },
+        uSubBass:    { value: 0 },
+        uLowMid:     { value: 0 },
         uMid:        { value: 0 },
+        uHighMid:    { value: 0 },
         uBrilliance: { value: 0 },
+        uCentroid:   { value: 0 },
+        uRolloff:    { value: 0 },
         uFlux:       { value: 0 },
         uBeatPulse:  { value: 0 },
         uRms:        { value: 0 },
@@ -141,11 +148,20 @@ export class FormulaScene {
         uPhrasePhase:{ value: 0 },
         uBarPulse:   { value: 0 },
         uSectionEnergy: { value: 0 },
+        uKickPulse:  { value: 0 },
+        uSnarePulse: { value: 0 },
+        uHatPulse:   { value: 0 },
+        uDownbeatPulse: { value: 0 },
+        uOnsetDensity: { value: 0 },
+        uSectionPulse: { value: 0 },
+        uSectionNovelty: { value: 0 },
         uReactivity: { value: 1 },
         uBeatGate:   { value: 1 },
         uBeatKick:   { value: 1 },
         uTempoLock:  { value: 0 },
         uProfile:    { value: new THREE.Vector4(1, 1, 1, 1) },
+        uTrackDNA0:  { value: new THREE.Vector4(0, 1, 1, 1) },
+        uTrackDNA1:  { value: new THREE.Vector4(0, 0.5, 0.5, 0) },
         uResolution: { value: new THREE.Vector2(w, h) },
       },
       blending:    THREE.AdditiveBlending,
@@ -167,7 +183,7 @@ export class FormulaScene {
     const tempo = 1 + (bpmRate - 1) * cfg.tempoInfluence * profile.tempo * cfg.tempoReactivity * Math.max(0.25, features.bpmConfidence)
     // Gated rather than scaled: on steady this collapses to 1, so targetRate is a
     // constant 1 and the time step never flexes.
-    const energy = 1 + features.rms * cfg.energyInfluence * profile.energy * cfg.reactivity * cfg.beatGate
+    const energy = 1 + features.normalized.rms * cfg.energyInfluence * profile.energy * cfg.reactivity * cfg.beatGate
     // beatPulse deliberately does NOT appear here. This rate drives a time
     // accumulator, so a beat that raises it does not bump the visual and settle
     // back -- it advances the animation's phase permanently, and every beat
@@ -184,12 +200,18 @@ export class FormulaScene {
     u.uZoom.value       = cfg.zoom
     u.uWaveAmp.value    = cfg.waveAmp
     u.uBrightness.value = cfg.brightness
-    u.uBass.value       = features.bass
-    u.uMid.value        = features.mid
-    u.uBrilliance.value = features.brilliance
-    u.uFlux.value       = features.flux
+    const normalized = features.normalized
+    u.uSubBass.value    = normalized.subBass
+    u.uBass.value       = normalized.bass
+    u.uLowMid.value     = normalized.lowMid
+    u.uMid.value        = normalized.mid
+    u.uHighMid.value    = normalized.highMid
+    u.uBrilliance.value = normalized.brilliance
+    u.uCentroid.value   = features.centroid
+    u.uRolloff.value    = features.rolloff
+    u.uFlux.value       = normalized.flux
     u.uBeatPulse.value  = features.beatPulse
-    u.uRms.value        = features.rms
+    u.uRms.value        = normalized.rms
     u.uTempoRate.value  = this.motionRate
     u.uBandWarp.value   = cfg.bandWarp
     u.uBeatPhase.value  = features.beatPhase
@@ -197,11 +219,37 @@ export class FormulaScene {
     u.uPhrasePhase.value = features.phrasePhase
     u.uBarPulse.value   = features.barPulse
     u.uSectionEnergy.value = features.sectionEnergy
+    u.uKickPulse.value  = features.kickPulse
+    u.uSnarePulse.value = features.snarePulse
+    u.uHatPulse.value   = features.hatPulse
+    u.uDownbeatPulse.value = features.downbeatPulse
+    u.uOnsetDensity.value = features.onsetDensity
+    u.uSectionPulse.value = features.sectionPulse
+    u.uSectionNovelty.value = features.sectionNovelty
     u.uReactivity.value = cfg.reactivity
     u.uBeatGate.value   = cfg.beatGate
     u.uBeatKick.value   = cfg.beatKick
     u.uTempoLock.value  = features.bpmConfidence
     u.uProfile.value.set(profile.bass, profile.mid, profile.high, profile.beat)
+    const dna = cfg.trackDNA
+    const dnaFollow = 1 - Math.exp(-dt * 0.45)
+    const dna0 = u.uTrackDNA0.value as THREE.Vector4
+    const dna1 = u.uTrackDNA1.value as THREE.Vector4
+    dna0.x += (dna.hue - dna0.x) * dnaFollow
+    dna0.y += (dna.radius - dna0.y) * dnaFollow
+    dna0.z += (dna.twist - dna0.z) * dnaFollow
+    dna0.w += (dna.rotation - dna0.w) * dnaFollow
+    dna1.x += (dna.phase - dna1.x) * dnaFollow
+    dna1.y += (dna.texture - dna1.y) * dnaFollow
+    dna1.z += (dna.paletteSpread - dna1.z) * dnaFollow
+    dna1.w += (dna.seed - dna1.w) * dnaFollow
+  }
+
+  resetTrackClock(dna: TrackDNA): void {
+    this.time = 0
+    this.motionRate = 1
+    this.mat.uniforms.uTrackDNA0.value.set(dna.hue, dna.radius, dna.twist, dna.rotation)
+    this.mat.uniforms.uTrackDNA1.value.set(dna.phase, dna.texture, dna.paletteSpread, dna.seed)
   }
 
   private profileFor(variant: number): { tempo: number; energy: number; bass: number; mid: number; high: number; beat: number } {

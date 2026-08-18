@@ -1,8 +1,10 @@
 import { type AudioFeatures, FFT_SIZE, BIN_COUNT } from './audioFeatures'
 import { OnePole, BANDS, bandEnergy } from './bandSplit'
-import { computeRms, computeCentroid, computeFlux, computeRolloff, fillSpectrum } from './features'
+import { computeRms, computeCentroid, computeFlux, computeBandFlux, computeRolloff, fillSpectrum } from './features'
 import { BeatDetector } from './beatDetector'
 import { useStore } from '../state/store'
+import { AdaptiveFeatureNormalizer } from './adaptiveNormalizer'
+import { SectionDetector, TransientDetector } from './musicalEvents'
 
 type ChromiumDisplayMediaOptions = DisplayMediaStreamOptions & {
   preferCurrentTab?: boolean
@@ -37,9 +39,15 @@ export class AudioEngine {
   }
 
   private beat = new BeatDetector()
+  private normalizer = new AdaptiveFeatureNormalizer()
+  private transients = new TransientDetector()
+  private sections = new SectionDetector()
   private lastTime = performance.now()
   private musicalBeats = 0
   private lastLockedBeat = 0
+  private beatOrdinal = -1
+  private beatPhaseScores = [0, 0, 0, 0]
+  private downbeatPulse = 0
 
   /**
    * The live tab-capture tracks. A recorder may add these to its own stream, but
@@ -55,6 +63,7 @@ export class AudioEngine {
 
   async start(): Promise<void> {
     this.stop()
+    this.resetForTrack()
 
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: 'browser' } as MediaTrackConstraints,
@@ -111,6 +120,20 @@ export class AudioEngine {
     this.stopping = false
   }
 
+  resetForTrack(): void {
+    this.beat.reset()
+    this.normalizer.reset()
+    this.transients.reset()
+    this.sections.reset()
+    Object.values(this.smoothers).forEach((smoother) => smoother.reset())
+    this.musicalBeats = 0
+    this.lastLockedBeat = 0
+    this.beatOrdinal = -1
+    this.beatPhaseScores = [0, 0, 0, 0]
+    this.downbeatPulse = 0
+    this.prevFreqData?.fill(0)
+  }
+
   tick(features: AudioFeatures): void {
     const analyser = this.analyser
     const freq = this.freqData
@@ -152,6 +175,29 @@ export class AudioEngine {
     const rawFlux = computeFlux(freq, prev)
     features.flux = this.smoothers.flux.update(rawFlux)
 
+    this.normalizer.update({
+      subBass: features.subBass,
+      bass: features.bass,
+      lowMid: features.lowMid,
+      mid: features.mid,
+      highMid: features.highMid,
+      brilliance: features.brilliance,
+      rms: features.rms,
+      centroid: features.centroid,
+      flux: features.flux,
+      rolloff: features.rolloff,
+    }, features.normalized, delta)
+
+    const transientFrame = this.transients.update({
+      kick: computeBandFlux(freq, prev, sr, 25, 180),
+      snare: computeBandFlux(freq, prev, sr, 180, 4200),
+      hat: computeBandFlux(freq, prev, sr, 4500, 18_000),
+    }, now, delta)
+    features.kickPulse = transientFrame.kick
+    features.snarePulse = transientFrame.snare
+    features.hatPulse = transientFrame.hat
+    features.onsetDensity = transientFrame.density
+
     this.beat.updateParams({
       threshold: devParams.beatThreshold,
       refractoryMs: devParams.beatRefractoryMs,
@@ -178,7 +224,24 @@ export class AudioEngine {
       this.lastLockedBeat = features.lastBeatTime
       const nearestBeat = Math.round(this.musicalBeats)
       this.musicalBeats += (nearestBeat - this.musicalBeats) * 0.25 * features.bpmConfidence
+
+      this.beatOrdinal++
+      const phase = ((this.beatOrdinal % 4) + 4) % 4
+      for (let i = 0; i < this.beatPhaseScores.length; i++) this.beatPhaseScores[i] *= 0.94
+      const accent = 0.3 + features.kickPulse * 0.45 + features.normalized.subBass * 0.25
+      this.beatPhaseScores[phase] += accent
+      const strongestPhase = this.beatPhaseScores.indexOf(Math.max(...this.beatPhaseScores))
+
+      if (this.beatOrdinal >= 4 && phase === strongestPhase) {
+        this.downbeatPulse = 1
+        const nearestBar = Math.round(this.musicalBeats / 4) * 4
+        const learnedConfidence = Math.min(1, this.beatOrdinal / 16) * features.bpmConfidence
+        this.musicalBeats += (nearestBar - this.musicalBeats) * 0.35 * learnedConfidence
+      }
     }
+
+    this.downbeatPulse *= Math.exp(-delta * 8)
+    features.downbeatPulse = this.downbeatPulse
 
     const beatDurationMs = 60_000 / effectiveBpm
     const sinceBeat = features.lastBeatTime > 0 ? now - features.lastBeatTime : this.musicalBeats % 1 * beatDurationMs
@@ -187,8 +250,25 @@ export class AudioEngine {
     features.phrasePhase = (this.musicalBeats / 16) % 1
     const barDistance = Math.min(features.barPhase, 1 - features.barPhase)
     features.barPulse = Math.exp(-barDistance * 18) * features.bpmConfidence
-    const rawSectionEnergy = Math.min(1, features.rms * 0.7 + features.bass * 0.45 + features.flux * 0.7)
+    const rawSectionEnergy = Math.min(
+      1,
+      features.normalized.rms * 0.55
+        + features.normalized.bass * 0.25
+        + features.normalized.flux * 0.30,
+    )
     features.sectionEnergy = this.smoothers.sectionEnergy.update(rawSectionEnergy)
+
+    const section = this.sections.update({
+      rms: features.normalized.rms,
+      bass: (features.normalized.subBass + features.normalized.bass) * 0.5,
+      mid: (features.normalized.lowMid + features.normalized.mid) * 0.5,
+      high: (features.normalized.highMid + features.normalized.brilliance) * 0.5,
+      centroid: features.centroid,
+      onsetDensity: features.onsetDensity,
+    }, delta)
+    features.sectionPulse = section.pulse
+    features.sectionNovelty = section.novelty
+    features.sectionIndex = section.index
 
     fillSpectrum(freq, features.spectrum)
   }

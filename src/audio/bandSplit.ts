@@ -18,6 +18,10 @@ export class OnePole {
     return this.y
   }
 
+  reset(value = 0): void {
+    this.y = value
+  }
+
   get value(): number { return this.y }
 }
 

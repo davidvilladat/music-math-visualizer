@@ -164,7 +164,7 @@ export class AircraftScene {
       ? Math.max(0.5, Math.min(1.65, features.bpm / 120))
       : 1
     const tempo = 1 + (bpmRate - 1) * cfg.tempoReactivity * Math.max(0.25, features.bpmConfidence)
-    const energy = 1 + features.rms * 0.18 * cfg.reactivity * cfg.beatGate
+    const energy = 1 + features.normalized.rms * 0.18 * cfg.reactivity * cfg.beatGate
     const targetRate = Math.max(0.25, Math.min(2.4, tempo * energy))
     const follow = 1 - Math.exp(-dt * 4)
     this.motionRate += (targetRate - this.motionRate) * follow
@@ -173,12 +173,12 @@ export class AircraftScene {
     const u = this.materialFor(cfg.variant).uniforms
     u.uTime.value = this.time
     u.uVariant.value = cfg.variant
-    u.uBass.value = features.bass
-    u.uMid.value = features.mid
-    u.uBrilliance.value = features.brilliance
-    u.uFlux.value = features.flux
-    u.uBeatPulse.value = features.beatPulse
-    u.uRms.value = features.rms
+    u.uBass.value = features.normalized.bass
+    u.uMid.value = features.normalized.mid
+    u.uBrilliance.value = features.normalized.brilliance
+    u.uFlux.value = features.normalized.flux
+    u.uBeatPulse.value = Math.max(features.beatPulse, features.kickPulse)
+    u.uRms.value = features.normalized.rms
     u.uReactivity.value = cfg.reactivity
   }
 

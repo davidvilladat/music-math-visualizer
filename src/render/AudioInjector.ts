@@ -53,6 +53,22 @@ export interface InjectorResult {
 export class AudioInjector {
   private hue = Math.random()
   private prevBeatPulse = 0
+  private randomState = 0x6d2b79f5
+
+  resetForTrack(seed: number): void {
+    this.randomState = (Math.floor(seed * 0xffff_ffff) || 0x6d2b79f5) >>> 0
+    this.hue = seed
+    this.prevBeatPulse = 0
+  }
+
+  private random(): number {
+    // Mulberry32: deterministic placement makes a replay retain its gesture map.
+    this.randomState = (this.randomState + 0x6d2b79f5) >>> 0
+    let value = this.randomState
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 0x1_0000_0000
+  }
 
   inject(
     features: AudioFeatures,
@@ -78,37 +94,38 @@ export class AudioInjector {
     if (!params.enabled) return defaults
 
     const force = baseSplatForce * params.audioForceScale
-    const brightness = 0.3 + features.rms * 4
+    const brightness = 0.3 + features.normalized.rms * 2.2
 
     // ── 1. Continuous bass injection ─────────────────────────────────────────
-    const bassEnergy = features.subBass * 0.6 + features.bass * 0.4
+    const bassEnergy = features.normalized.subBass * 0.6 + features.normalized.bass * 0.4
     if (bassEnergy > params.bassThreshold) {
       const excess = (bassEnergy - params.bassThreshold) / (1 - params.bassThreshold)
-      const count = Math.random() < excess * 2 ? (Math.random() < 0.5 ? 2 : 1) : 0
+      const count = this.random() < excess * 2 ? (this.random() < 0.5 ? 2 : 1) : 0
       for (let i = 0; i < count; i++) {
-        const x = 0.15 + Math.random() * 0.7
-        const y = 0.05 + Math.random() * 0.35
+        const x = 0.15 + this.random() * 0.7
+        const y = 0.05 + this.random() * 0.35
         const speed = excess * force * 0.6
         fluid.addSplat({
           x, y,
-          dx: (Math.random() - 0.5) * speed * 0.4,
-          dy: speed * (0.5 + Math.random() * 0.5),
+          dx: (this.random() - 0.5) * speed * 0.4,
+          dy: speed * (0.5 + this.random() * 0.5),
           color: scaledColor(this.hue, brightness * bassEnergy * 2),
         })
       }
     }
 
     // ── 2. Beat burst: radial velocity splats + magnetic dipole ──────────────
-    const beatRising = features.beatPulse > 0.5 && this.prevBeatPulse <= 0.5
+    const beatSignal = Math.max(features.beatPulse, features.kickPulse)
+    const beatRising = beatSignal > 0.5 && this.prevBeatPulse <= 0.5
     if (beatRising) {
-      const cx = 0.25 + Math.random() * 0.5
-      const cy = 0.25 + Math.random() * 0.5
-      const beatForce = force * params.beatForceScale * features.beatPulse
+      const cx = 0.25 + this.random() * 0.5
+      const cy = 0.25 + this.random() * 0.5
+      const beatForce = force * params.beatForceScale * beatSignal
       const beatHue = (this.hue + 0.5) % 1
 
       // Radial velocity burst
       for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.3
+        const angle = (i / 6) * Math.PI * 2 + this.random() * 0.3
         fluid.addSplat({
           x: cx, y: cy,
           dx: Math.cos(angle) * beatForce,
@@ -122,43 +139,43 @@ export class AudioInjector {
         fluid.addMagneticDipole({
           x: cx,
           y: cy,
-          angle: Math.random() * Math.PI * 2,
-          strength: params.dipoleStrength * features.beatPulse,
+          angle: this.random() * Math.PI * 2,
+          strength: params.dipoleStrength * beatSignal,
           radius: params.dipoleRadius,
         })
       }
     }
-    this.prevBeatPulse = features.beatPulse
+    this.prevBeatPulse = beatSignal
 
     // ── 3. Brilliance sparkles ────────────────────────────────────────────────
-    if (features.brilliance > 0.15 && Math.random() < features.brilliance * 0.4) {
+    if (features.normalized.brilliance > 0.15 && this.random() < features.normalized.brilliance * 0.4) {
       fluid.addSplat({
-        x: Math.random(),
-        y: Math.random(),
-        dx: (Math.random() - 0.5) * force * 0.15,
-        dy: (Math.random() - 0.5) * force * 0.15,
-        color: scaledColor(this.hue + 0.1, brightness * features.brilliance * 3),
+        x: this.random(),
+        y: this.random(),
+        dx: (this.random() - 0.5) * force * 0.15,
+        dy: (this.random() - 0.5) * force * 0.15,
+        color: scaledColor(this.hue + 0.1, brightness * features.normalized.brilliance * 3),
       })
     }
 
     // ── 4. Sub-bass also injects small dipoles (slow magnetic breathing) ─────
-    if (params.magneticEnabled && features.subBass > 0.12 && Math.random() < features.subBass * 0.15) {
+    if (params.magneticEnabled && features.normalized.subBass > 0.12 && this.random() < features.normalized.subBass * 0.15) {
       fluid.addMagneticDipole({
-        x: 0.2 + Math.random() * 0.6,
-        y: 0.1 + Math.random() * 0.4,
-        angle: Math.random() * Math.PI * 2,
-        strength: params.dipoleStrength * 0.4 * features.subBass,
+        x: 0.2 + this.random() * 0.6,
+        y: 0.1 + this.random() * 0.4,
+        angle: this.random() * Math.PI * 2,
+        strength: params.dipoleStrength * 0.4 * features.normalized.subBass,
         radius: params.dipoleRadius * 1.5,
       })
     }
 
     // ── Parameter modulation ──────────────────────────────────────────────────
     // Flux sharpens vorticity on transients
-    const curlStrength = baseCurlStrength + features.flux * params.fluxVorticityScale
+    const curlStrength = baseCurlStrength + features.normalized.flux * params.fluxVorticityScale
 
     // More mids = fluid retains more energy
     const velocityDissipation = baseVelocityDissipation +
-      features.mid * 0.5 * (1.0 - baseVelocityDissipation) * 0.4
+      features.normalized.mid * 0.5 * (1.0 - baseVelocityDissipation) * 0.4
 
     // Centroid → Rm: bright music tightens the MHD coupling (field lines resist flow)
     const magneticReynolds = params.magneticEnabled
@@ -167,7 +184,7 @@ export class AudioInjector {
 
     // Field line brightness scales with overall energy (quiet music = subtle lines)
     const fieldLineBrightness = params.magneticEnabled
-      ? baseFieldLineBrightness * (0.4 + features.rms * 2.5)
+      ? baseFieldLineBrightness * (0.4 + features.normalized.rms * 1.5)
       : 0
 
     return { curlStrength, velocityDissipation, magneticReynolds, fieldLineBrightness }

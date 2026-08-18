@@ -22,6 +22,8 @@ function widgetUrl(trackUrl: string): string {
 
 function parseSound(s: SCSound): TrackInfo {
   return {
+    id:         s.permalink_url,
+    source:     'soundcloud',
     title:      s.title,
     artist:     s.user?.username ?? 'Unknown',
     artworkUrl: s.artwork_url
