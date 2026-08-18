@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { getAccessToken, redirectToLogin } from '../auth/authService'
 import { VISUAL_MODE_META, useStore, type DevParams } from '../state/store'
 import type { SourceState, SourceTab } from '../state/sourceState'
+import { HUTCHULA_CHOREOGRAPHY } from '../choreography/songChoreography'
 
 type VisualMode = DevParams['visualMode']
 
@@ -11,6 +12,7 @@ interface Props {
   sourceState: SourceState
   onStart: (url: string) => Promise<void>
   onDemo: (mode: VisualMode) => void
+  onShowcase: () => Promise<void>
   onSpotify: () => void
 }
 
@@ -27,7 +29,7 @@ function initialTabFor(state: SourceState): SourceTab {
   return 'initialTab' in state ? state.initialTab : 'soundcloud'
 }
 
-export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Props) {
+export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpotify }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<SourceTab>(initialTabFor(sourceState))
   const [url, setUrl] = useState('')
@@ -41,7 +43,9 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
   const connectingSource = sourceState.status === 'connecting' ? sourceState.source : null
   const sourceError = sourceState.status === 'error' ? sourceState : null
   const captureMessage = sourceState.status === 'capture-ended' ? sourceState.message : null
-  const soundCloudError = validErr ?? (sourceError?.source === 'soundcloud' ? sourceError.message : null)
+  const isShowcaseError = sourceError?.source === 'soundcloud' && initialTabFor(sourceState) === 'demo'
+  const soundCloudError = validErr ?? (sourceError?.source === 'soundcloud' && !isShowcaseError ? sourceError.message : null)
+  const showcaseError = isShowcaseError ? sourceError.message : null
   const spotifyError = sourceError?.source === 'spotify' ? sourceError.message : null
   const soundCloudLoading = connectingSource === 'soundcloud'
   const spotifyLoading = connectingSource === 'spotify'
@@ -187,6 +191,24 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onSpotify }: Prop
 
           {tab === 'demo' && (
             <>
+              <div style={showcaseCard}>
+                <div style={showcaseEyebrow}>CURATED SONG DEMO</div>
+                <div style={showcaseTitle}>{HUTCHULA_CHOREOGRAPHY.artist} — {HUTCHULA_CHOREOGRAPHY.title}</div>
+                <div style={showcaseMeta}>8:11 · Lorenz → Trefoil · adaptive sensitivity</div>
+                <button
+                  type="button"
+                  onClick={() => void onShowcase()}
+                  disabled={soundCloudLoading}
+                  style={{ ...showcaseButton, opacity: soundCloudLoading ? 0.45 : 1 }}
+                  data-testid="launch-hutchula-showcase"
+                >
+                  {soundCloudLoading ? 'Preparing Show' : 'Launch Hutchula Show'}
+                </button>
+                {showcaseError && <p style={errorText}>{showcaseError}</p>}
+                <p style={note}>Uses the SoundCloud track. Enable “Share tab audio” when Chrome asks.</p>
+              </div>
+
+              <div style={divider} />
               <label htmlFor="demo-mode" style={label}>Visual mode</label>
               <select
                 id="demo-mode"
@@ -376,6 +398,48 @@ const miniDemoButton: CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   cursor: 'pointer',
+}
+
+const showcaseCard: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 7,
+  padding: 13,
+  border: '1px solid rgba(244,63,94,0.22)',
+  borderRadius: 9,
+  background: 'linear-gradient(135deg, rgba(244,63,94,0.10), rgba(190,242,100,0.04))',
+}
+
+const showcaseEyebrow: CSSProperties = {
+  color: 'rgba(251,113,133,0.78)',
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: '0.14em',
+}
+
+const showcaseTitle: CSSProperties = {
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: 750,
+}
+
+const showcaseMeta: CSSProperties = {
+  color: 'rgba(255,255,255,0.43)',
+  fontSize: 11,
+}
+
+const showcaseButton: CSSProperties = {
+  ...primaryButton,
+  marginTop: 3,
+  background: '#fb7185',
+  borderColor: '#fb7185',
+  color: '#180306',
+}
+
+const divider: CSSProperties = {
+  height: 1,
+  margin: '3px 0',
+  background: 'rgba(255,255,255,0.08)',
 }
 
 const mutedText: CSSProperties = {

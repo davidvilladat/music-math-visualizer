@@ -8,7 +8,7 @@ import { DebugOverlay } from './ui/DebugOverlay'
 import { ModeHUD } from './ui/ModeHUD'
 import { AircraftHUD } from './ui/AircraftHUD'
 import { DemoBanner } from './ui/DemoBanner'
-import { destroyScPlayer, initScPlayer } from './soundcloud/SoundCloudPlayer'
+import { destroyScPlayer, getScPlayer, initScPlayer } from './soundcloud/SoundCloudPlayer'
 import { loadSpotifySDK, initPlayer, disconnectPlayer } from './spotify/player'
 import { exchangeCodeForTokens } from './auth/authService'
 import { isPremium } from './spotify/api'
@@ -27,6 +27,12 @@ import {
   downloadRecording,
   recordingFilename,
 } from './capture/SessionRecorder'
+import {
+  HUTCHULA_CHOREOGRAPHY,
+  SongChoreographer,
+  type ChoreographyFrame,
+} from './choreography/songChoreography'
+import { ShowcaseHUD } from './ui/ShowcaseHUD'
 
 type VisualMode = DevParams['visualMode']
 
@@ -55,6 +61,8 @@ export function App() {
   const [recordBusy, setRecordBusy] = useState(false)
   const [recordElapsedMs, setRecordElapsedMs] = useState(0)
   const [recordNotice, setRecordNotice] = useState<string | null>(null)
+  const [showcaseActive, setShowcaseActive] = useState(false)
+  const [showcaseFrame, setShowcaseFrame] = useState<ChoreographyFrame | null>(null)
 
   const setTrack = useStore((state) => state.setTrack)
   const setPlaying = useStore((state) => state.setPlaying)
@@ -95,6 +103,8 @@ export function App() {
   const resetPlaybackState = useCallback(() => {
     setTrack(null)
     setPlaying(false)
+    setShowcaseActive(false)
+    setShowcaseFrame(null)
   }, [setPlaying, setTrack])
 
   const stopAllSources = useCallback(() => {
@@ -159,11 +169,12 @@ export function App() {
     setPendingCode(null)
   }, [pendingCode, renderer, startSpotify])
 
-  const startSoundCloud = useCallback(async (url: string) => {
+  const startSoundCloud = useCallback(async (url: string, curated = false) => {
     const activeRenderer = rendererRef.current
     if (!activeRenderer) return
 
-    setSourceState({ status: 'connecting', source: 'soundcloud', initialTab: 'soundcloud' })
+    const initialTab = curated ? 'demo' : 'soundcloud'
+    setSourceState({ status: 'connecting', source: 'soundcloud', initialTab })
     activeRenderer.stopDemo()
     disconnectPlayer()
     resetPlaybackState()
@@ -180,14 +191,21 @@ export function App() {
         activeRenderer.stopAudio()
         destroyScPlayer()
         setPlaying(false)
+        setShowcaseActive(false)
+        setShowcaseFrame(null)
         setSourceState({
           status: 'error',
           source: 'soundcloud',
-          initialTab: 'soundcloud',
+          initialTab,
           message: 'SoundCloud playback failed. Try another public track or playlist.',
         })
       })
       if (player.currentTrack) setTrack(player.currentTrack)
+      if (curated) {
+        const firstAct = HUTCHULA_CHOREOGRAPHY.acts[0]
+        setDevParams({ visualMode: firstAct.mode, reactivity: firstAct.reactivity })
+        setShowcaseActive(true)
+      }
       setSourceState({ status: 'active', source: 'soundcloud', isDemo: false })
     } catch (error) {
       activeRenderer.stopAudio()
@@ -195,11 +213,15 @@ export function App() {
       setSourceState({
         status: 'error',
         source: 'soundcloud',
-        initialTab: 'soundcloud',
+        initialTab,
         message: errorMessage(error, 'SoundCloud could not start. Try another public URL.'),
       })
     }
-  }, [resetPlaybackState, setPlaying, setTrack])
+  }, [resetPlaybackState, setDevParams, setPlaying, setTrack])
+
+  const startHutchulaShowcase = useCallback(async () => {
+    await startSoundCloud(HUTCHULA_CHOREOGRAPHY.url, true)
+  }, [startSoundCloud])
 
   const startDemo = useCallback((mode: VisualMode) => {
     const activeRenderer = rendererRef.current
@@ -221,6 +243,41 @@ export function App() {
     setDevParams({ visualMode: mode })
     setSourceState({ status: 'active', source: 'demo', isDemo: true })
   }, [setDevParams, setPlaying, setTrack])
+
+  useEffect(() => {
+    if (!showcaseActive || sourceState.status !== 'active') return
+    const player = getScPlayer()
+    const activeRenderer = rendererRef.current
+    if (!player || !activeRenderer) return
+
+    const conductor = new SongChoreographer(HUTCHULA_CHOREOGRAPHY)
+    let mounted = true
+    let requestPending = false
+
+    const sync = () => {
+      if (requestPending) return
+      requestPending = true
+      void player.getPosition()
+        .then((positionMs) => {
+          if (!mounted) return
+          const durationMs = player.currentTrack?.duration || HUTCHULA_CHOREOGRAPHY.durationMs
+          const frame = conductor.update(positionMs, durationMs, activeRenderer.features)
+          const current = useStore.getState().devParams
+          if (current.visualMode !== frame.act.mode || current.reactivity !== frame.reactivity) {
+            setDevParams({ visualMode: frame.act.mode, reactivity: frame.reactivity })
+          }
+          setShowcaseFrame(frame)
+        })
+        .finally(() => { requestPending = false })
+    }
+
+    sync()
+    const id = window.setInterval(sync, 250)
+    return () => {
+      mounted = false
+      window.clearInterval(id)
+    }
+  }, [setDevParams, showcaseActive, sourceState.status])
 
   const changeSource = useCallback(() => {
     stopAllSources()
@@ -333,6 +390,7 @@ export function App() {
           sourceState={sourceState}
           onStart={startSoundCloud}
           onDemo={startDemo}
+          onShowcase={startHutchulaShowcase}
           onSpotify={() => void startSpotify()}
         />
       )}
@@ -354,6 +412,9 @@ export function App() {
           <ModeHUD />
           <AircraftHUD renderer={renderer} />
           {isDemo && <DemoBanner />}
+          {showcaseActive && (
+            <ShowcaseHUD choreography={HUTCHULA_CHOREOGRAPHY} frame={showcaseFrame} />
+          )}
         </>
       )}
     </>
