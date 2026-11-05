@@ -40,6 +40,67 @@ test.describe('iPhone-like browser', () => {
     }
     expect((await request.get('/icons/apple-touch-icon.png')).ok()).toBe(true)
   })
+
+  test('picks the demo visual from an iOS-style sheet on the source screen', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Demo', exact: true }).click()
+    await expect(page.locator('select#demo-mode')).toHaveCount(0)
+    await page.getByTestId('demo-mode-picker').click()
+    const sheet = page.getByRole('dialog', { name: 'Visual' })
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole('menuitemradio', { name: 'Neon' }).click()
+    await expect(sheet).toHaveCount(0)
+    await expect(page.getByTestId('demo-mode-picker')).toContainText('Neon')
+  })
+
+  test('drives every selector and action from the settings sheet', async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+
+    await page.goto('/?mode=airframe&aircraft=1')
+    await page.getByRole('button', { name: 'Demo', exact: true }).click()
+    await page.getByTestId('launch-demo-selected').click()
+
+    const bar = page.getByTestId('top-bar')
+    await expect(bar).toBeVisible()
+    // The desktop selects are gone on a phone.
+    await expect(page.getByLabel('Visual mode')).toHaveCount(0)
+
+    await page.getByTestId('open-settings').click()
+    const sheet = page.getByTestId('settings-sheet')
+    await expect(sheet.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await expect(page.getByTestId('row-aircraft')).toContainText('A350 XWB')
+
+    // Aircraft picker: checkmark moves, back returns to Settings.
+    await page.getByTestId('row-aircraft').click()
+    await page.getByTestId('aircraft-2').click()
+    await expect(page.getByTestId('aircraft-2')).toHaveAttribute('aria-checked', 'true')
+    await page.getByTestId('sheet-back').click()
+    await expect(page.getByTestId('row-aircraft')).not.toContainText('A350 XWB')
+
+    // Visual picker: switching away from Aviation removes the Aircraft row.
+    await page.getByTestId('row-visual').click()
+    await page.getByTestId('mode-neon').click()
+    await expect(page.getByTestId('mode-neon')).toHaveAttribute('aria-checked', 'true')
+    await page.getByTestId('sheet-back').click()
+    await expect(page.getByTestId('row-visual')).toContainText('Neon')
+    await expect(page.getByTestId('row-aircraft')).toHaveCount(0)
+
+    await page.getByTestId('row-reactivity').click()
+    await page.getByTestId('reactivity-intense').click()
+    await page.getByRole('button', { name: 'Done' }).click()
+    await expect(sheet).toHaveCount(0)
+    await expect(bar).toContainText('Neon')
+
+    // Change Source returns to the source screen.
+    await page.getByTestId('open-settings').click()
+    await page.getByTestId('row-source').click()
+    await expect(page.getByTestId('launch-mic')).toBeVisible()
+
+    expect(consoleErrors).toEqual([])
+  })
 })
 
 test.describe('microphone source', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useStore, AIRCRAFT_VARIANTS } from '../state/store'
 import type { Renderer } from '../render/renderer'
+import { useCompact } from './useCompact'
 
 interface Props {
   renderer: Renderer | null
@@ -26,6 +27,7 @@ const EMPTY_PROGRESS: PreloadProgress = {
 export function AircraftHUD({ renderer }: Props) {
   const mode = useStore((state) => state.devParams.visualMode)
   const variant = useStore((state) => state.devParams.aircraftVariant)
+  const compact = useCompact()
   const [status, setStatus] = useState<AircraftStatus>('idle')
   const [progress, setProgress] = useState<PreloadProgress>(EMPTY_PROGRESS)
 
@@ -57,15 +59,15 @@ export function AircraftHUD({ renderer }: Props) {
       <span style={progressPill} data-testid="aircraft-preload-progress">
         {progress.ready}/{progress.total}
       </span>
-      <span style={hint}>P</span>
+      {!compact && <span style={hint}>P</span>}
     </div>
   )
 }
 
 const badge: CSSProperties = {
   position: 'fixed',
-  bottom: 16,
-  left: 16,
+  bottom: 'max(16px, env(safe-area-inset-bottom))',
+  left: 'max(16px, env(safe-area-inset-left))',
   display: 'flex',
   alignItems: 'center',
   gap: 8,

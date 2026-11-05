@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrowserCheck } from './ui/BrowserCheck'
 import { checkBrowser } from './auth/browserCheck'
 import { useWakeLock } from './ui/useWakeLock'
+import { useCompact } from './ui/useCompact'
 import { SoundCloudGate } from './ui/SoundCloudGate'
 import { Canvas } from './ui/Canvas'
 import { TopBar } from './ui/TopBar'
@@ -65,6 +66,7 @@ export function App() {
   const [browserReady, setBrowserReady] = useState(false)
   const [sourceState, setSourceState] = useState<SourceState>({ status: 'idle', initialTab: homeTab })
   const activeSourceRef = useRef<SourceKind>(homeTab)
+  const compact = useCompact()
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [presetsReady, setPresetsReady] = useState(false)
   const [shareLabel, setShareLabel] = useState<string | null>(null)
@@ -470,7 +472,8 @@ export function App() {
           <DebugOverlay renderer={renderer} />
           <ModeHUD />
           <AircraftHUD renderer={renderer} />
-          {isDemo && <DemoBanner />}
+          {/* On phones the bar already says "Demo engine"; the banner would sit on the aircraft HUD. */}
+          {isDemo && !compact && <DemoBanner />}
           {showcaseActive && (
             <ShowcaseHUD choreography={HUTCHULA_CHOREOGRAPHY} frame={showcaseFrame} />
           )}

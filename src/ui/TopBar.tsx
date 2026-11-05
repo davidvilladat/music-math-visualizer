@@ -3,6 +3,8 @@ import { AIRCRAFT_VARIANTS, useStore, VISUAL_MODE_META } from '../state/store'
 import { getScPlayer } from '../soundcloud/SoundCloudPlayer'
 import { getPlayer } from '../spotify/player'
 import type { DevParams } from '../state/store'
+import { useCompact } from './useCompact'
+import { CompactBar } from './CompactBar'
 
 type VisualMode = DevParams['visualMode']
 type Reactivity = DevParams['reactivity']
@@ -67,6 +69,7 @@ export function TopBar({
   const reactivity = useStore((s) => s.devParams.reactivity)
   const aircraftVariant = useStore((s) => s.devParams.aircraftVariant)
   const setDevParams = useStore((s) => s.setDevParams)
+  const compact = useCompact()
 
   const [visible, setVisible] = useState(true)
   const [positionMs, setPositionMs] = useState(0)
@@ -158,6 +161,33 @@ export function TopBar({
     scPlayer.seekTo(target)
     setPositionMs(target)
     setSeekValue('')
+  }
+
+  if (compact) {
+    return (
+      <CompactBar
+        track={track}
+        visible={visible}
+        isPlaying={isPlaying}
+        hasTransport={hasTransport}
+        onPrev={prevTrack}
+        onTogglePlay={togglePlay}
+        onNext={nextTrack}
+        visualMode={visualMode}
+        aircraftVariant={aircraftVariant}
+        reactivity={reactivity}
+        setDevParams={setDevParams}
+        onSharePreset={onSharePreset}
+        shareLabel={shareLabel}
+        onToggleRecord={onToggleRecord}
+        recording={recording}
+        recordBusy={recordBusy}
+        recordNotice={recordNotice}
+        recordElapsed={formatTime(recordElapsedMs)}
+        onChangeSource={onChangeSource}
+        onSheetChange={(open) => (open ? holdOpen() : resetTimer())}
+      />
+    )
   }
 
   return (

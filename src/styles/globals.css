@@ -9,6 +9,32 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
   background: #000;
+  overscroll-behavior: none;
+}
+
+/* Touch: no grey tap flash, no double-tap zoom delay, no text selection on controls. */
+button, select, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS grouped-list rows (src/ui/ios/Sheet.tsx). The separator is inset 16px
+   from the left like UITableView, and absent above the first row. */
+.ios-row {
+  background: transparent;
+}
+.ios-row + .ios-row {
+  background: linear-gradient(rgba(84,84,88,0.65), rgba(84,84,88,0.65)) 16px 0 / calc(100% - 16px) 0.5px no-repeat;
+}
+.ios-row:active:not(:disabled) {
+  background-color: rgba(255,255,255,0.10);
+}
+
+/* iOS zooms the page when a focused field is under 16px. */
+@media (max-width: 760px), (max-height: 500px) {
+  input, select, textarea { font-size: 16px !important; }
 }
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */

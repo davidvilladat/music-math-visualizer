@@ -39,7 +39,7 @@ export function ShowcaseHUD({ choreography, frame }: Props) {
 
 const hud: CSSProperties = {
   position: 'fixed',
-  bottom: 18,
+  bottom: 'max(18px, env(safe-area-inset-bottom))',
   left: '50%',
   width: 'min(390px, calc(100vw - 32px))',
   transform: 'translateX(-50%)',

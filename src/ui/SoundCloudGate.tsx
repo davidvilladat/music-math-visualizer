@@ -4,6 +4,9 @@ import { VISUAL_MODE_META, useStore, type DevParams } from '../state/store'
 import type { SourceState, SourceTab } from '../state/sourceState'
 import { HUTCHULA_CHOREOGRAPHY } from '../choreography/songChoreography'
 import type { BrowserCapabilities } from '../auth/browserCheck'
+import { useCompact } from './useCompact'
+import { PickerField, type PickerOption } from './ios/Sheet'
+import { FORMULA_OPTIONS, SCENE_OPTIONS } from './CompactBar'
 
 type VisualMode = DevParams['visualMode']
 
@@ -73,6 +76,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
   const micLoading = connectingSource === 'mic'
   const micError = sourceError?.source === 'mic' ? sourceError.message : null
   const showInstallHint = caps.isIOS && !caps.isStandalone
+  const compact = useCompact()
 
   useEffect(() => {
     setTab(initialTabFor(sourceState, sourceTabsFor(caps)))
@@ -264,6 +268,18 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
 
               <div style={divider} />
               </>)}
+              {compact ? (
+                <PickerField<VisualMode>
+                  label="Visual"
+                  options={DEMO_MODE_OPTIONS}
+                  value={demoMode}
+                  onChange={(mode) => {
+                    setDemoTouched(true)
+                    setDemoMode(mode)
+                  }}
+                  testId="demo-mode-picker"
+                />
+              ) : (<>
               <label htmlFor="demo-mode" style={label}>Visual mode</label>
               <select
                 id="demo-mode"
@@ -278,6 +294,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
                   <option key={mode.key} value={mode.key}>{mode.label}</option>
                 ))}
               </select>
+              </>)}
               <button
                 type="button"
                 onClick={() => launchDemo(demoMode)}
@@ -312,20 +329,26 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
   )
 }
 
+const DEMO_MODE_OPTIONS: PickerOption<VisualMode>[] = [...SCENE_OPTIONS, ...FORMULA_OPTIONS]
+
 const page: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  display: 'grid',
-  placeItems: 'center',
+  // Flex + auto margins rather than grid centering: when the panel is taller
+  // than a landscape phone it must scroll from its top, not overflow both ways.
+  display: 'flex',
+  flexDirection: 'column',
   background: '#030303',
   color: 'var(--fg)',
   fontFamily: 'var(--font-ui)',
-  padding: 24,
+  padding: 'max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left))',
+  overflowY: 'auto',
   zIndex: 5,
 }
 
 const panel: CSSProperties = {
   width: 'min(440px, 100%)',
+  margin: 'auto',
   display: 'flex',
   flexDirection: 'column',
   gap: 18,

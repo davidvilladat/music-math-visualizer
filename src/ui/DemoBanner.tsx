@@ -11,7 +11,7 @@ export function DemoBanner() {
 
 const banner: CSSProperties = {
   position: 'fixed',
-  bottom: 14,
+  bottom: 'max(14px, env(safe-area-inset-bottom))',
   left: '50%',
   transform: 'translateX(-50%)',
   background: 'rgba(3,3,3,0.70)',
