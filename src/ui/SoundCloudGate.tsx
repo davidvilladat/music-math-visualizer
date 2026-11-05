@@ -3,6 +3,7 @@ import { getAccessToken, redirectToLogin } from '../auth/authService'
 import { VISUAL_MODE_META, useStore, type DevParams } from '../state/store'
 import type { SourceState, SourceTab } from '../state/sourceState'
 import { HUTCHULA_CHOREOGRAPHY } from '../choreography/songChoreography'
+import type { BrowserCapabilities } from '../auth/browserCheck'
 
 type VisualMode = DevParams['visualMode']
 
@@ -14,6 +15,24 @@ interface Props {
   onDemo: (mode: VisualMode) => void
   onShowcase: () => Promise<void>
   onSpotify: () => void
+  onMic: () => void
+  caps: BrowserCapabilities
+}
+
+const TAB_LABELS: Record<SourceTab, string> = {
+  soundcloud: 'SoundCloud',
+  spotify: 'Spotify',
+  mic: 'Microphone',
+  demo: 'Demo',
+}
+
+/** SoundCloud and Spotify reach the visuals only through tab capture. */
+export function sourceTabsFor(caps: Pick<BrowserCapabilities, 'canCaptureTab' | 'canUseMic'>): SourceTab[] {
+  const tabs: SourceTab[] = []
+  if (caps.canCaptureTab) tabs.push('soundcloud', 'spotify')
+  if (caps.canUseMic) tabs.push('mic')
+  tabs.push('demo')
+  return tabs
 }
 
 export function isSoundCloudUrl(raw: string): boolean {
@@ -25,13 +44,15 @@ export function isSoundCloudUrl(raw: string): boolean {
   }
 }
 
-function initialTabFor(state: SourceState): SourceTab {
-  return 'initialTab' in state ? state.initialTab : 'soundcloud'
+function initialTabFor(state: SourceState, available: SourceTab[]): SourceTab {
+  const wanted = 'initialTab' in state ? state.initialTab : available[0]
+  return available.includes(wanted) ? wanted : available[0]
 }
 
-export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpotify }: Props) {
+export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpotify, onMic, caps }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [tab, setTab] = useState<SourceTab>(initialTabFor(sourceState))
+  const available = sourceTabsFor(caps)
+  const [tab, setTab] = useState<SourceTab>(initialTabFor(sourceState, available))
   const [url, setUrl] = useState('')
   const [validErr, setValidErr] = useState<string | null>(null)
   const storedVisualMode = useStore((state) => state.devParams.visualMode)
@@ -43,16 +64,19 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
   const connectingSource = sourceState.status === 'connecting' ? sourceState.source : null
   const sourceError = sourceState.status === 'error' ? sourceState : null
   const captureMessage = sourceState.status === 'capture-ended' ? sourceState.message : null
-  const isShowcaseError = sourceError?.source === 'soundcloud' && initialTabFor(sourceState) === 'demo'
+  const isShowcaseError = sourceError?.source === 'soundcloud' && initialTabFor(sourceState, available) === 'demo'
   const soundCloudError = validErr ?? (sourceError?.source === 'soundcloud' && !isShowcaseError ? sourceError.message : null)
   const showcaseError = isShowcaseError ? sourceError.message : null
   const spotifyError = sourceError?.source === 'spotify' ? sourceError.message : null
   const soundCloudLoading = connectingSource === 'soundcloud'
   const spotifyLoading = connectingSource === 'spotify'
+  const micLoading = connectingSource === 'mic'
+  const micError = sourceError?.source === 'mic' ? sourceError.message : null
+  const showInstallHint = caps.isIOS && !caps.isStandalone
 
   useEffect(() => {
-    setTab(initialTabFor(sourceState))
-  }, [sourceState])
+    setTab(initialTabFor(sourceState, sourceTabsFor(caps)))
+  }, [caps, sourceState])
 
   useEffect(() => {
     if (!demoTouched) setDemoMode(storedVisualMode)
@@ -86,15 +110,15 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
           </div>
         </header>
 
-        <nav style={tabs} aria-label="Audio source">
-          {(['soundcloud', 'spotify', 'demo'] as const).map((key) => (
+        <nav style={{ ...tabs, gridTemplateColumns: `repeat(${available.length}, 1fr)` }} aria-label="Audio source">
+          {available.map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => setTab(key)}
               style={{ ...tabButton, ...(tab === key ? activeTab : null) }}
             >
-              {key === 'soundcloud' ? 'SoundCloud' : key === 'spotify' ? 'Spotify' : 'Demo'}
+              {TAB_LABELS[key]}
             </button>
           ))}
         </nav>
@@ -189,8 +213,38 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
             </>
           )}
 
+          {tab === 'mic' && (
+            <>
+              <p style={mutedText}>
+                Play music out loud nearby — a speaker, the car, another phone — and SPECTRA reacts to what the microphone hears.
+                The sound is analysed on this device and never recorded or sent anywhere.
+              </p>
+              {micError && <p style={errorText}>{micError}</p>}
+              <button
+                type="button"
+                onClick={onMic}
+                disabled={micLoading}
+                style={{ ...primaryButton, opacity: micLoading ? 0.45 : 1 }}
+                data-testid="launch-mic"
+              >
+                {micLoading ? 'Starting' : micError ? 'Try Again' : 'Start Listening'}
+              </button>
+              <button
+                type="button"
+                onClick={() => launchDemo(demoMode)}
+                style={secondaryButton}
+              >
+                Start Demo
+              </button>
+              {!caps.canCaptureTab && (
+                <p style={note}>SoundCloud and Spotify sources need Chrome or Edge on a computer.</p>
+              )}
+            </>
+          )}
+
           {tab === 'demo' && (
             <>
+              {caps.canCaptureTab && (<>
               <div style={showcaseCard}>
                 <div style={showcaseEyebrow}>CURATED SONG DEMO</div>
                 <div style={showcaseTitle}>{HUTCHULA_CHOREOGRAPHY.artist} — {HUTCHULA_CHOREOGRAPHY.title}</div>
@@ -209,6 +263,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
               </div>
 
               <div style={divider} />
+              </>)}
               <label htmlFor="demo-mode" style={label}>Visual mode</label>
               <select
                 id="demo-mode"
@@ -246,6 +301,12 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
             </>
           )}
         </div>
+
+        {showInstallHint && (
+          <p style={note} data-testid="install-hint">
+            Tip: tap Share → Add to Home Screen to run SPECTRA full screen like an app.
+          </p>
+        )}
       </section>
     </main>
   )

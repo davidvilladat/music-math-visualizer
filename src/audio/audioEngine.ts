@@ -16,6 +16,9 @@ type TabAudioConstraints = MediaTrackConstraints & {
   suppressLocalAudioPlayback?: boolean
 }
 
+/** `tab` = browser tab capture (desktop Chromium), `mic` = microphone (any device). */
+export type AudioInput = 'tab' | 'mic'
+
 export class AudioEngine {
   private ctx: AudioContext | null = null
   private analyser: AnalyserNode | null = null
@@ -61,9 +64,10 @@ export class AudioEngine {
     this.onEnded = cb
   }
 
-  async start(): Promise<void> {
+  async start(input: AudioInput = 'tab'): Promise<void> {
     this.stop()
     this.resetForTrack()
+    if (input === 'mic') return this.startMic()
 
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: 'browser' } as MediaTrackConstraints,
@@ -84,6 +88,48 @@ export class AudioEngine {
     // stop video tracks — we only need audio
     stream.getVideoTracks().forEach((t) => t.stop())
 
+    this.attach(stream, audioTracks, new AudioContext())
+  }
+
+  /**
+   * Listen through the microphone. This is the only live source on phones:
+   * iOS has no tab capture, and Spotify's SDKs never expose the audio stream.
+   */
+  private async startMic(): Promise<void> {
+    // Create the context before the first await: iOS only lets audio start
+    // inside the tap that asked for it, and the permission prompt ends the tap.
+    const ctx = new AudioContext()
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          // Music, not speech: voice processing would gate and flatten it.
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      })
+    } catch (error) {
+      void ctx.close()
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        throw new Error('Microphone access was blocked. Allow it in the browser settings and try again.')
+      }
+      throw error
+    }
+
+    const audioTracks = stream.getAudioTracks()
+    if (audioTracks.length === 0) {
+      stream.getTracks().forEach((t) => t.stop())
+      void ctx.close()
+      throw new Error('No microphone found.')
+    }
+
+    this.attach(stream, audioTracks, ctx)
+    if (ctx.state === 'suspended') await ctx.resume()
+  }
+
+  private attach(stream: MediaStream, audioTracks: MediaStreamTrack[], ctx: AudioContext): void {
     this.stream = stream
     audioTracks.forEach((track) => {
       track.onended = () => {
@@ -93,7 +139,9 @@ export class AudioEngine {
       }
     })
 
-    this.ctx = new AudioContext()
+    this.ctx = ctx
+    // The analyser is never connected to the destination, so nothing is played
+    // back: no feedback loop when the input is a microphone.
     const source = this.ctx.createMediaStreamSource(new MediaStream(audioTracks))
 
     this.analyser = this.ctx.createAnalyser()

@@ -1,4 +1,4 @@
-export type SourceTab = 'soundcloud' | 'spotify' | 'demo'
+export type SourceTab = 'soundcloud' | 'spotify' | 'mic' | 'demo'
 export type SourceKind = SourceTab
 
 export type SourceState =

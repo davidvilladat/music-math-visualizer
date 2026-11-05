@@ -9,7 +9,7 @@ import { NeonScene } from './neon/NeonScene'
 import { NovaScene } from './nova/NovaScene'
 import { FormulaScene } from './formula/FormulaScene'
 import { AircraftScene, type AircraftPreloadProgress, type AircraftVariantStatus } from './aircraft/AircraftScene'
-import { AudioEngine } from '../audio/audioEngine'
+import { AudioEngine, type AudioInput } from '../audio/audioEngine'
 import { DemoEngine } from '../audio/DemoEngine'
 import { makeAudioFeatures, type AudioFeatures } from '../audio/audioFeatures'
 import { useStore, AIRCRAFT_VARIANTS, type DevParams } from '../state/store'
@@ -108,8 +108,8 @@ export class Renderer {
     void this.preloadAircraftVariants()
   }
 
-  async startAudio(): Promise<void> {
-    await this.engine.start()
+  async startAudio(input: AudioInput = 'tab'): Promise<void> {
+    await this.engine.start(input)
   }
 
   stopAudio(): void {

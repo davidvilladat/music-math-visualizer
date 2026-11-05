@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrowserCheck } from './ui/BrowserCheck'
+import { checkBrowser } from './auth/browserCheck'
+import { useWakeLock } from './ui/useWakeLock'
 import { SoundCloudGate } from './ui/SoundCloudGate'
 import { Canvas } from './ui/Canvas'
 import { TopBar } from './ui/TopBar'
@@ -13,7 +15,7 @@ import { loadSpotifySDK, initPlayer, disconnectPlayer } from './spotify/player'
 import { exchangeCodeForTokens } from './auth/authService'
 import { isPremium } from './spotify/api'
 import { useStore, type DevParams } from './state/store'
-import { isEntryState, type SourceState } from './state/sourceState'
+import { isEntryState, type SourceKind, type SourceState, type SourceTab } from './state/sourceState'
 import {
   loadVisualPreset,
   parsePresetQuery,
@@ -48,9 +50,21 @@ function cleanOAuthCallbackUrl(params: URLSearchParams): void {
   window.history.replaceState({}, '', nextUrl)
 }
 
+const CAPTURE_ENDED: Record<SourceKind, string> = {
+  soundcloud: 'Audio capture ended. Start again and keep "Share tab audio" enabled.',
+  spotify: 'Audio capture ended. Start again and keep "Share tab audio" enabled.',
+  mic: 'The microphone stopped. Start listening again when you are ready.',
+  demo: 'The demo stopped.',
+}
+
 export function App() {
+  const [caps] = useState(checkBrowser)
+  // Phones and non-Chromium browsers cannot capture tab audio, so the
+  // microphone is their live source and the first tab they see.
+  const homeTab: SourceTab = caps.canCaptureTab ? 'soundcloud' : 'mic'
   const [browserReady, setBrowserReady] = useState(false)
-  const [sourceState, setSourceState] = useState<SourceState>({ status: 'idle', initialTab: 'soundcloud' })
+  const [sourceState, setSourceState] = useState<SourceState>({ status: 'idle', initialTab: homeTab })
+  const activeSourceRef = useRef<SourceKind>(homeTab)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [presetsReady, setPresetsReady] = useState(false)
   const [shareLabel, setShareLabel] = useState<string | null>(null)
@@ -121,19 +135,21 @@ export function App() {
       disconnectPlayer()
       destroyScPlayer()
       resetPlaybackState()
+      const source = activeSourceRef.current
       setSourceState({
         status: 'capture-ended',
-        initialTab: 'soundcloud',
-        message: 'Audio capture ended. Start again and keep "Share tab audio" enabled.',
+        initialTab: source === 'mic' ? 'mic' : homeTab,
+        message: CAPTURE_ENDED[source],
       })
     })
     setRenderer(readyRenderer)
-  }, [resetPlaybackState])
+  }, [homeTab, resetPlaybackState])
 
   const startSpotify = useCallback(async (code?: string) => {
     const activeRenderer = rendererRef.current
     if (!activeRenderer) return
 
+    activeSourceRef.current = 'spotify'
     setSourceState({ status: 'connecting', source: 'spotify', initialTab: 'spotify' })
     activeRenderer.stopDemo()
     destroyScPlayer()
@@ -174,6 +190,7 @@ export function App() {
     if (!activeRenderer) return
 
     const initialTab = curated ? 'demo' : 'soundcloud'
+    activeSourceRef.current = 'soundcloud'
     setSourceState({ status: 'connecting', source: 'soundcloud', initialTab })
     activeRenderer.stopDemo()
     disconnectPlayer()
@@ -219,6 +236,40 @@ export function App() {
     }
   }, [resetPlaybackState, setDevParams, setPlaying, setTrack])
 
+  const startMic = useCallback(async () => {
+    const activeRenderer = rendererRef.current
+    if (!activeRenderer) return
+
+    activeSourceRef.current = 'mic'
+    setSourceState({ status: 'connecting', source: 'mic', initialTab: 'mic' })
+    activeRenderer.stopDemo()
+    disconnectPlayer()
+    destroyScPlayer()
+    resetPlaybackState()
+
+    try {
+      await activeRenderer.startAudio('mic')
+      setTrack({
+        id: 'microphone',
+        source: 'mic',
+        title: 'Listening',
+        artist: 'Microphone',
+        artworkUrl: '',
+        duration: 0,
+      })
+      setPlaying(true)
+      setSourceState({ status: 'active', source: 'mic', isDemo: false })
+    } catch (error) {
+      activeRenderer.stopAudio()
+      setSourceState({
+        status: 'error',
+        source: 'mic',
+        initialTab: 'mic',
+        message: errorMessage(error, 'The microphone could not start.'),
+      })
+    }
+  }, [resetPlaybackState, setPlaying, setTrack])
+
   const startHutchulaShowcase = useCallback(async () => {
     await startSoundCloud(HUTCHULA_CHOREOGRAPHY.url, true)
   }, [startSoundCloud])
@@ -227,6 +278,7 @@ export function App() {
     const activeRenderer = rendererRef.current
     if (!activeRenderer) return
 
+    activeSourceRef.current = 'demo'
     activeRenderer.stopAudio()
     disconnectPlayer()
     destroyScPlayer()
@@ -281,8 +333,13 @@ export function App() {
 
   const changeSource = useCallback(() => {
     stopAllSources()
-    setSourceState({ status: 'idle', initialTab: 'soundcloud' })
-  }, [stopAllSources])
+    setSourceState({ status: 'idle', initialTab: activeSourceRef.current === 'mic' ? 'mic' : homeTab })
+  }, [homeTab, stopAllSources])
+
+  // A visualizer is watched, not touched: keep the screen on while it runs.
+  useWakeLock(sourceState.status === 'active')
+
+  const passBrowserCheck = useCallback(() => setBrowserReady(true), [])
 
   // The elapsed readout is the only sign the capture is still running, so it
   // ticks off a timer rather than off the render loop.
@@ -375,7 +432,7 @@ export function App() {
   }, [])
 
   if (!browserReady) {
-    return <BrowserCheck onPass={() => setBrowserReady(true)} />
+    return <BrowserCheck caps={caps} onPass={passBrowserCheck} />
   }
 
   const showEntry = isEntryState(sourceState)
@@ -392,6 +449,8 @@ export function App() {
           onDemo={startDemo}
           onShowcase={startHutchulaShowcase}
           onSpotify={() => void startSpotify()}
+          onMic={() => void startMic()}
+          caps={caps}
         />
       )}
 

@@ -12,7 +12,7 @@ export type { ReactivityMode, VisualMode, VisualModeMeta }
 
 export interface TrackInfo {
   id?: string
-  source?: 'spotify' | 'soundcloud' | 'demo'
+  source?: 'spotify' | 'soundcloud' | 'mic' | 'demo'
   title: string
   artist: string
   artworkUrl: string

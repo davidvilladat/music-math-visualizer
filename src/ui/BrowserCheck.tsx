@@ -1,11 +1,9 @@
 import { useEffect } from 'react'
-import { checkBrowser } from '../auth/browserCheck'
+import type { BrowserCapabilities } from '../auth/browserCheck'
 
-interface Props { onPass: () => void }
+interface Props { caps: BrowserCapabilities; onPass: () => void }
 
-export function BrowserCheck({ onPass }: Props) {
-  const caps = checkBrowser()
-
+export function BrowserCheck({ caps, onPass }: Props) {
   useEffect(() => {
     if (caps.ok) onPass()
   }, [caps.ok, onPass])
@@ -29,7 +27,7 @@ export function BrowserCheck({ onPass }: Props) {
             <li key={f} style={listItem}>{f}</li>
           ))}
         </ul>
-        <p style={hint}>Open in Chrome or Edge on a desktop computer.</p>
+        <p style={hint}>Try an up-to-date Chrome, Edge or Safari.</p>
       </div>
     </div>
   )
