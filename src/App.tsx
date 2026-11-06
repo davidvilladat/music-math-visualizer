@@ -52,8 +52,8 @@ function cleanOAuthCallbackUrl(params: URLSearchParams): void {
 }
 
 const CAPTURE_ENDED: Record<SourceKind, string> = {
-  soundcloud: 'Audio capture ended. Start again and keep "Share tab audio" enabled.',
-  spotify: 'Audio capture ended. Start again and keep "Share tab audio" enabled.',
+  soundcloud: 'Audio sharing ended. Start again and keep "Share system audio" ticked.',
+  spotify: 'Audio sharing ended. Start again and keep "Share system audio" ticked.',
   mic: 'The microphone stopped. Start listening again when you are ready.',
   demo: 'The demo stopped.',
 }

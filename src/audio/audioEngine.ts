@@ -69,10 +69,14 @@ export class AudioEngine {
     this.resetForTrack()
     if (input === 'mic') return this.startMic()
 
+    // Open the picker on "Entire screen" with system audio. Sharing a screen
+    // gets Chrome's small floating indicator, which has a Hide button, instead
+    // of the "Sharing this tab" bar that tab capture pins over the page even in
+    // fullscreen. This tab stays pickable (selfBrowserSurface) for anyone who
+    // prefers capturing only its audio.
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: 'browser' } as MediaTrackConstraints,
+      video: { displaySurface: 'monitor' } as MediaTrackConstraints,
       audio: { suppressLocalAudioPlayback: false } as TabAudioConstraints,
-      preferCurrentTab: true,
       selfBrowserSurface: 'include',
       systemAudio: 'include',
     } as ChromiumDisplayMediaOptions)
@@ -81,7 +85,7 @@ export class AudioEngine {
     if (audioTracks.length === 0) {
       stream.getTracks().forEach((t) => t.stop())
       throw new Error(
-        'No audio track captured. Make sure "Share tab audio" is checked in the browser prompt.'
+        'No audio was shared. Choose "Entire screen" and tick "Also share system audio" (or pick this tab and tick "Also share tab audio").'
       )
     }
 

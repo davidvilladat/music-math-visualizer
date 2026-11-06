@@ -174,7 +174,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
               >
                 Aviation Demo
               </button>
-              <p style={note}>When Chrome opens the share dialog, choose this tab and enable "Share tab audio".</p>
+              <p style={note}>When Chrome asks, choose “Entire screen” and tick “Also share system audio”. Then press Hide on Chrome's sharing bar for a clean full screen.</p>
             </>
           )}
 
@@ -198,7 +198,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
                 </>
               ) : isSpotifyAuthed ? (
                 <>
-                  <p style={mutedText}>Spotify uses Premium browser playback and still needs tab audio capture for visuals.</p>
+                  <p style={mutedText}>Spotify uses Premium browser playback; the visuals hear it through screen audio sharing.</p>
                   <button type="button" onClick={onSpotify} style={primaryButton}>
                     Launch Spotify
                   </button>
@@ -208,7 +208,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
                 </>
               ) : (
                 <>
-                  <p style={mutedText}>Spotify is an advanced path: connect a Premium account, then share tab audio when prompted.</p>
+                  <p style={mutedText}>Spotify is an advanced path: connect a Premium account, then share your screen with system audio when prompted.</p>
                   <button type="button" onClick={() => void redirectToLogin()} style={primaryButton}>
                     Connect Spotify
                   </button>
@@ -263,7 +263,7 @@ export function SoundCloudGate({ sourceState, onStart, onDemo, onShowcase, onSpo
                   {soundCloudLoading ? 'Preparing Show' : 'Launch Hutchula Show'}
                 </button>
                 {showcaseError && <p style={errorText}>{showcaseError}</p>}
-                <p style={note}>Uses the SoundCloud track. Enable “Share tab audio” when Chrome asks.</p>
+                <p style={note}>Uses the SoundCloud track. Choose “Entire screen” with system audio when Chrome asks.</p>
               </div>
 
               <div style={divider} />
